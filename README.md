@@ -2,26 +2,32 @@
   <a href="README.ru.md">🇷🇺 Read this in Russian</a>
 </p>
 
-<p align="center">
-  <img src="assets/icon/Tuna_icon.png" width="256" alt="Tuna Desktop Icon" />
-</p>
+<table align="center">
+<tr>
+  <td valign="middle" align="center" width="200">
+    <img src="assets/icon/Tuna_icon.png" width="160" alt="Tuna Desktop Icon" />
+  </td>
+  <td valign="middle" align="left">
+    <p>
+      <a href="https://github.com/lekasnet/tuna-app/stargazers">
+        <img src="https://img.shields.io/github/stars/lekasnet/tuna-app?style=flat-square" alt="GitHub Stars" />
+      </a>
+      <a href="https://github.com/lekasnet/tuna-app/releases">
+        <img src="https://img.shields.io/github/v/release/lekasnet/tuna-app?style=flat-square" alt="Latest Release" />
+      </a>
+      <a href="https://github.com/lekasnet/tuna-app/graphs/contributors">
+        <img src="https://img.shields.io/github/contributors/lekasnet/tuna-app?style=flat-square" alt="Contributors" />
+      </a>
+    </p>
+    <p>
+      <img src="https://img.shields.io/badge/Flutter-3.19%2B-blue?style=flat-square&logo=flutter" alt="Flutter 3.19+" />
+      <img src="https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-success?style=flat-square" alt="Platforms" />
+      <img src="https://img.shields.io/github/license/lekasnet/tuna-app?style=flat-square" alt="License" />
+    </p>
+  </td>
+</tr>
+</table>
 
-<p align="center">
-  <a href="https://github.com/lekasnet/tuna-app/stargazers">
-    <img src="https://img.shields.io/github/stars/lekasnet/tuna-app?style=flat-square" alt="GitHub Stars" />
-  </a>
-  <a href="https://github.com/lekasnet/tuna-app/releases">
-    <img src="https://img.shields.io/github/v/release/lekasnet/tuna-app?style=flat-square" alt="Latest Release" />
-  </a>
-  <a href="https://github.com/lekasnet/tuna-app/graphs/contributors">
-    <img src="https://img.shields.io/github/contributors/lekasnet/tuna-app?style=flat-square" alt="Contributors" />
-  </a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Flutter-3.19%2B-blue?style=flat-square&logo=flutter" alt="Flutter 3.19+" />
-  <img src="https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-success?style=flat-square" alt="Platforms" />
-</p>
 
 
 # Before you begin
