@@ -1,0 +1,132 @@
+name: tuna
+description: "A new Flutter project."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.5.3
+  bitsdojo_window: ^0.1.6
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/ttf/
+
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/ttf/JetBrainsMono-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/ttf/JetBrainsMono-ThinItalic.ttf
+          weight: 100
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/ttf/JetBrainsMono-ExtraLightItalic.ttf
+          weight: 200
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-Light.ttf
+          weight: 300
+        - asset: assets/fonts/ttf/JetBrainsMono-LightItalic.ttf
+          weight: 300
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/ttf/JetBrainsMono-Italic.ttf
+          weight: 400
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ttf/JetBrainsMono-MediumItalic.ttf
+          weight: 500
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/ttf/JetBrainsMono-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/ttf/JetBrainsMono-BoldItalic.ttf
+          weight: 700
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMono-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/ttf/JetBrainsMono-ExtraBoldItalic.ttf
+          weight: 800
+          style: italic
+
+    - family: JetBrains Mono NL
+      fonts:
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-ThinItalic.ttf
+          weight: 100
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-ExtraLightItalic.ttf
+          weight: 200
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Light.ttf
+          weight: 300
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-LightItalic.ttf
+          weight: 300
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Italic.ttf
+          weight: 400
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-MediumItalic.ttf
+          weight: 500
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-SemiBoldItalic.ttf
+          weight: 600
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-BoldItalic.ttf
+          weight: 700
+          style: italic
+
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/ttf/JetBrainsMonoNL-ExtraBoldItalic.ttf
+          weight: 800
+          style: italic
+
