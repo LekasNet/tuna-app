@@ -1,43 +1,67 @@
-<p align="center">
-  <img src="assets/icon/Tuna_icon.png" width="128"/>
+<p align="right">
+  <a href="README.ru.md">🇷🇺 Read this in Russian</a>
 </p>
 
-# Перед ознакомлением
+<p align="center">
+  <img src="assets/icon/Tuna_icon.png" width="256" alt="Tuna Desktop Icon" />
+</p>
 
-Tuna-app, а иначе Tuna desktop client - неофициальная утилита для работы с tuna CLI, разработанной командой [tuna.am](https://tuna.am/)
+<p align="center">
+  <a href="https://github.com/lekasnet/tuna-app/stargazers">
+    <img src="https://img.shields.io/github/stars/lekasnet/tuna-app?style=flat-square" alt="GitHub Stars" />
+  </a>
+  <a href="https://github.com/lekasnet/tuna-app/releases">
+    <img src="https://img.shields.io/github/v/release/lekasnet/tuna-app?style=flat-square" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/lekasnet/tuna-app/graphs/contributors">
+    <img src="https://img.shields.io/github/contributors/lekasnet/tuna-app?style=flat-square" alt="Contributors" />
+  </a>
+</p>
 
-Это не попытка использования чужого труда в своих целях, а лишь предоставление удобного интерфейса для тех, кто не любит работать через консоль, или хочет оптимизировать своё рабочее пространство.
+<p align="center">
+  <img src="https://img.shields.io/badge/Flutter-3.19%2B-blue?style=flat-square&logo=flutter" alt="Flutter 3.19+" />
+  <img src="https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-success?style=flat-square" alt="Platforms" />
+</p>
 
-> Для работы Tuna desktop client необходимо установить Tuna CLI с [официального сайта](https://tuna.am/docs/getting-started/?type=cli)
 
-Я знаю о существовании официального клиента tuna desktop, но на мой взгляд он **не выполняет функций** свыше минимума.
+# Before you begin
 
-**Спасибо за вимание, [lek4s](https://github.com/LekasNet)**
+Tuna-app, also known as the Tuna Desktop Client, is an **unofficial utility** for working with the Tuna CLI created by the team behind [tuna.am](https://tuna.am/).
+
+This project is **not** an attempt to misuse someone else’s product, but rather an effort to provide a more convenient interface for people who prefer not to work directly through the terminal or wish to optimize their workflow.
+
+> To use Tuna Desktop Client, you must install the Tuna CLI from the  
+> **[official website](https://tuna.am/docs/getting-started/?type=cli)**.
+
+I am aware of the existence of the official Tuna Desktop client, but in my view, it does **not perform functions** beyond the absolute minimum.
+
+**Thank you for your attention, [lek4s](https://github.com/LekasNet)**
 
 
 # 🎛️ Tuna Desktop Client (Unofficial)
 
-Графический десктоп-клиент для **Tuna Tunnel CLI**, разработанный на Flutter.  
-Позволяет управлять туннелями, просматривать логи, работать с локальной встроенной консолью и настраивать CLI без прямой работы в терминале.
+A graphical desktop client for the **Tuna Tunnel CLI**, built with Flutter.  
+It allows you to manage tunnels, view logs, use a built-in console, and configure the CLI without relying on the terminal.
 
 ![preview](./assets/readme/preview.png)
 
-> ⚠️ **Важно!**  
-> Версии для **Linux** и **macOS** были реализованы, но **не тестировались на реальных устройствах**.  
-> Теоретически они должны работать, однако их корректность не гарантируется.
+> ⚠️ **Important!**  
+> The **Linux** and **macOS** versions are implemented, but **have not been tested on actual devices**.  
+> Theoretically they should work, but their correctness is not guaranteed.
 
 ---
 
-## 📦 Скачать (Windows)
+## 📦 Download (Windows)
 
-👉 Последний стабильный билд для **Windows** доступен в разделе [Releases](https://github.com/lekasnet/tuna-app/releases) GitHub
+👉 The latest stable **Windows** build is available in the GitHub  
+**[Releases](https://github.com/lekasnet/tuna-app/releases)** section.
 
 ---
 
-## 🧰 Сборка Linux / macOS
+## 🧰 Building for Linux / macOS
 
-Готовые бинарники **НЕ** прилагаются.  
-Чтобы получить версии для Linux или macOS, вам необходимо **собрать проект самостоятельно**:
+Prebuilt binaries for Linux and macOS are **NOT included**.  
+To obtain these versions, you must **build the project yourself**:
 
 ### Enable Desktop Targets
 
@@ -53,65 +77,66 @@ flutter build linux
 flutter build macos
 ```
 
-Результаты сборки:
+Build outputs:
 
 * Linux → `build/linux/x64/release/`
 * macOS → `build/macos/Build/Products/Release/Tuna.app`
 
 ---
 
-## 🚀 Возможности
+## 🚀 Features
 
-* Управление туннелями HTTP и TCP
-* Просмотр статуса туннелей в реальном времени
-* Детальная карточка туннеля: URL, Web UI, forwarding, логи
-* Встроенная консоль:
+* Management of HTTP and TCP tunnels
+* Real-time tunnel status display
+* Detailed tunnel information: URL, Web UI, forwarding, logs
+* Integrated console:
 
-    * собственный интерпретатор команд
-    * режим PowerShell / bash (в зависимости от платформы)
-    * подсветка вывода, автоскролл, нумерация строк
-    * история команд ↑ ↓
-* Полная поддержка темной и светлой темы
-* Поддержка кастомного пути до `tuna` CLI
-* Автоопределение местоположения `tuna.exe` / `tuna`
-* Поддержка хранения токена, API-ключа и данных аккаунта
-* Поддержка копирования URL, Web UI, forwarding ссылок
-* Экспорт логов в файл
-* Системное окно с кастомными кнопками (без стандартной рамки)
-* Скругленные углы и современный UI на Flutter 3.x
+  * custom command interpreter
+  * PowerShell / bash mode (depending on platform)
+  * colored output, auto-scrolling, line numbers
+  * command history with ↑ ↓
+* Full support for light and dark themes
+* Custom path support for the `tuna` CLI
+* Automatic detection of `tuna.exe` / `tuna`
+* Token, API key, and account data storage
+* Copy buttons for URL / Web UI / forwarding
+* Export logs to file
+* Custom title bar with custom window buttons
+* Rounded corners and modern Flutter 3.x UI
 
 ---
 
-## ⚙️ Требования
+## ⚙️ Requirements
 
 * Flutter SDK 3.19+
-* Tuna CLI (`tuna`, `tuna.exe`) установлен в PATH
-  или указанный путь в настройках клиента
-* Windows 10+ / Linux x64 / macOS 12+ (Intel или ARM)
+* Tuna CLI (`tuna`, `tuna.exe`) installed in PATH
+  or configured manually in the client settings
+* Windows 10+ / Linux x64 / macOS 12+ (Intel or ARM)
 
 ---
 
-## 💾 Настройки
+## 💾 Settings
 
-Настройки автоматически сохраняются:
+The application automatically saves:
 
-* тема
-* токен
-* API-ключ
-* путь до `tuna`
-* имя пользователя и дата истечения подписки (после первого запуска туннеля)
+* theme
+* token
+* API key
+* tuna executable path
+* username and subscription expiration date
+  (after the first successful tunnel launch)
 
-При изменении токена приложение автоматически:
+When the token changes, the app automatically:
 
-* обновляет конфиг `tuna.yml`
-* валидирует его через `tuna http 8080`
-* синхронизирует данные аккаунта
+* updates the `tuna.yml` configuration
+* validates the token via a temporary tunnel (`tuna http 8080`)
+* synchronizes the account information
 
 ---
 
-## 🧑‍💻 Разработка
+## 🧑‍💻 Development
 
-### Клонирование
+### Clone
 
 ```sh
 git clone https://github.com/lekasnet/tuna-app.git
@@ -119,18 +144,18 @@ cd tuna-app
 flutter pub get
 ```
 
-### Запуск
+### Run
 
 ```sh
 flutter run -d windows
-# или
+# or
 flutter run -d linux
-# или
+# or
 flutter run -d macos
 ```
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
-MIT — свободно используйте и изменяйте.
+MIT — feel free to use and modify.
