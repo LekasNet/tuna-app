@@ -65,6 +65,7 @@ class _LocalProcessTunnel {
 
 class TunnelsController extends ChangeNotifier {
   static const int _maxVisibleLogLines = 750;
+  static const int _maxStoredFailureDays = 180;
 
   final TunnelsService _service;
   final CliController _cli;
@@ -80,6 +81,7 @@ class TunnelsController extends ChangeNotifier {
 
   static const _accountNameKey = 'account_name';
   static const _accountPaidTillKey = 'account_paid_till';
+  static const _failureEventsKey = 'tunnel_failure_events_v1';
 
   List<SavedTunnel> _tunnels = <SavedTunnel>[];
   bool _initialized = false;
@@ -93,6 +95,7 @@ class TunnelsController extends ChangeNotifier {
   final Map<String, UpgradeInfo> _upgrades = <String, UpgradeInfo>{};
   final Map<String, String> _webInterfaces = <String, String>{};
   final Map<String, ForwardingInfo> _forwardings = <String, ForwardingInfo>{};
+  final Map<String, List<DateTime>> _failureEvents = <String, List<DateTime>>{};
 
   AccountInfo? _accountInfo;
   SavedTunnel? _selectedTunnel;
@@ -145,6 +148,14 @@ class TunnelsController extends ChangeNotifier {
     return visible.reversed.toList(growable: false);
   }
 
+  List<String> allLogsFor(String id) {
+    return List.unmodifiable(_allLogs[id] ?? const <String>[]);
+  }
+
+  List<DateTime> failureEventsFor(String id) {
+    return List.unmodifiable(_failureEvents[id] ?? const <DateTime>[]);
+  }
+
   void clearVisibleLogs(String id) {
     final all = _allLogs[id];
     if (all == null) return;
@@ -169,6 +180,7 @@ class TunnelsController extends ChangeNotifier {
   Future<void> load() async {
     _tunnels = await _service.loadTunnels();
     await _loadAccountFromPrefs();
+    await _loadFailureEventsFromPrefs();
     _initialized = true;
     notifyListeners();
   }
@@ -245,13 +257,28 @@ class TunnelsController extends ChangeNotifier {
     await _service.saveTunnels(_tunnels);
   }
 
-  Future<void> updateStatus(String id, TunnelStatus status) async {
+  Future<void> updateStatus(
+    String id,
+    TunnelStatus status, {
+    DateTime? startedAt,
+  }) async {
     _tunnels = _tunnels
-        .map((t) => t.id == id ? t.copyWith(status: status) : t)
+        .map(
+          (t) => t.id == id
+              ? t.copyWith(status: status, lastStartedAt: startedAt)
+              : t,
+        )
         .toList(growable: false);
 
     if (_selectedTunnel?.id == id) {
-      _selectedTunnel = _selectedTunnel!.copyWith(status: status);
+      _selectedTunnel = _selectedTunnel!.copyWith(
+        status: status,
+        lastStartedAt: startedAt,
+      );
+    }
+
+    if (status == TunnelStatus.failed) {
+      _recordFailureEvent(id, at: DateTime.now());
     }
 
     notifyListeners();
@@ -274,12 +301,14 @@ class TunnelsController extends ChangeNotifier {
     _upgrades.remove(id);
     _webInterfaces.remove(id);
     _forwardings.remove(id);
+    _failureEvents.remove(id);
 
     if (_selectedTunnel?.id == id) {
       _selectedTunnel = null;
     }
 
     notifyListeners();
+    await _saveFailureEventsToPrefs();
     await _service.saveTunnels(_tunnels);
   }
 
@@ -443,7 +472,7 @@ class TunnelsController extends ChangeNotifier {
       _stoppingIds.remove(id);
       _appendLog(id, '--- START ${tunnel.type.name.toUpperCase()} ---');
 
-      await updateStatus(id, TunnelStatus.starting);
+      await updateStatus(id, TunnelStatus.starting, startedAt: DateTime.now());
 
       process.stdout
           .transform(utf8.decoder)
@@ -557,6 +586,76 @@ class TunnelsController extends ChangeNotifier {
     await prefs.remove(_accountNameKey);
     await prefs.remove(_accountPaidTillKey);
     notifyListeners();
+  }
+
+  void _recordFailureEvent(String id, {DateTime? at}) {
+    final value = (at ?? DateTime.now()).toUtc();
+    final list = List<DateTime>.from(_failureEvents[id] ?? const <DateTime>[])
+      ..add(value)
+      ..sort();
+
+    _failureEvents[id] = _pruneFailureList(list);
+    unawaited(_saveFailureEventsToPrefs());
+  }
+
+  List<DateTime> _pruneFailureList(List<DateTime> list) {
+    final cutoff = DateTime.now().toUtc().subtract(
+      const Duration(days: _maxStoredFailureDays),
+    );
+    return list
+        .where((event) => !event.isBefore(cutoff))
+        .toList(growable: false);
+  }
+
+  Future<void> _loadFailureEventsFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_failureEventsKey);
+    if (raw == null || raw.trim().isEmpty) return;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return;
+
+      final loaded = <String, List<DateTime>>{};
+      decoded.forEach((key, value) {
+        if (value is! List) return;
+        final parsed = value
+            .whereType<String>()
+            .map(DateTime.tryParse)
+            .whereType<DateTime>()
+            .map((event) => event.toUtc())
+            .toList(growable: false);
+
+        if (parsed.isNotEmpty) {
+          loaded[key] = _pruneFailureList(parsed);
+        }
+      });
+
+      _failureEvents
+        ..clear()
+        ..addAll(loaded);
+    } catch (_) {
+      // ignore malformed failure history
+    }
+  }
+
+  Future<void> _saveFailureEventsToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final payload = <String, List<String>>{};
+    _failureEvents.forEach((key, events) {
+      final normalized = _pruneFailureList(events);
+      if (normalized.isEmpty) return;
+      payload[key] = normalized
+          .map((event) => event.toIso8601String())
+          .toList();
+    });
+
+    if (payload.isEmpty) {
+      await prefs.remove(_failureEventsKey);
+      return;
+    }
+
+    await prefs.setString(_failureEventsKey, jsonEncode(payload));
   }
 
   bool _applyStatusesByActiveIds(Set<String> activeIds) {

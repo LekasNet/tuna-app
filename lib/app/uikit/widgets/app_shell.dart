@@ -8,6 +8,7 @@ import 'package:tuna/di/tabs/tabs_controller.dart';
 import 'package:tuna/di/docker/docker_controller.dart';
 import 'package:tuna/di/tunnels/remote_tunnels_controller.dart';
 import 'package:tuna/presentation/console_screen.dart';
+import 'package:tuna/presentation/dashboard_screen.dart';
 import 'package:tuna/presentation/docker_screen.dart';
 import 'package:tuna/presentation/remote_tunnels_screen.dart';
 import 'package:tuna/presentation/settings_screen.dart';
@@ -1021,7 +1022,10 @@ class _RightContent extends StatelessWidget {
       builder: (context, _) {
         switch (tabsController.current) {
           case AppTab.dashboard:
-            return const Center(child: Text('Dashboard (заглушка)'));
+            return DashboardScreen(
+              tabsController: tabsController,
+              tunnelsController: tunnelsController,
+            );
           case AppTab.tunnels:
             return TunnelsScreen(controller: tunnelsController);
           case AppTab.docker:
