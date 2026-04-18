@@ -1,64 +1,99 @@
-import 'package:flutter/material.dart';
-import 'package:bitsdojo_window/bitsdojo_window.dart';
+import 'dart:async';
 
+import 'package:bitsdojo_window/bitsdojo_window.dart';
+import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import 'core/cli/cli_controller.dart';
+import 'core/updates/app_update_service.dart';
 import 'di/console/console_controller.dart';
+import 'di/docker/docker_controller.dart';
+import 'di/notifications/notifications_controller.dart';
 import 'di/settings/settings_controller.dart';
 import 'di/settings/settings_service.dart';
 import 'di/tabs/tabs_controller.dart';
+import 'di/tunnels/remote_tunnels_controller.dart';
 import 'di/tunnels/tunnels_controller.dart';
 import 'di/tunnels/tunnels_service.dart';
-import 'core/cli/cli_controller.dart';
 import 'presentation/tuna_app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ---------- 1. SettingsService ----------
   final settingsService = SettingsService();
 
-  // ---------- 2. Загружаем путь ----------
   String? tunaPath = await settingsService.loadTunaPath();
-
-  // ---------- 3. Если пути нет — автоопределяем ----------
   if (tunaPath == null || tunaPath.isEmpty) {
     await settingsService.detectTunaPathIfNeeded();
-    tunaPath = await settingsService.loadTunaPath(); // забираем найденный путь
+    tunaPath = await settingsService.loadTunaPath();
   }
 
-  // ---------- 4. Создаём CLI-контроллер с уже готовым путем ----------
-  final cliController = CliController(
-    customExecutablePath: tunaPath, // может быть null → тогда CliController сам пробует PATH
-  );
+  final cliController = CliController(customExecutablePath: tunaPath);
 
-  // ---------- 5. Создаём TunnelsController ----------
-  final tunnelsService = TunnelsService();
   final tunnelsController = TunnelsController(
-    service: tunnelsService,
+    service: TunnelsService(),
     cli: cliController,
   );
   await tunnelsController.load();
 
-  // ---------- 6. Создаём SettingsController ----------
-  // Теперь можно передавать cliController — замкнутости нет,
-  // потому что путь уже известен ДО создания контроллера.
+  final notificationsController = NotificationsController();
+
+  void syncUpgradeNotification() {
+    final upgrade = tunnelsController.latestUpgrade;
+    notificationsController.syncUpgradeNotification(
+      currentVersion: upgrade?.currentVersion,
+      newVersion: upgrade?.newVersion,
+      updateUrl: upgrade?.url,
+    );
+  }
+
+  tunnelsController.addListener(syncUpgradeNotification);
+  syncUpgradeNotification();
+
   final settingsController = SettingsController(settingsService, cliController);
   await settingsController.load();
 
-  // ---------- 7. Остальные ----------
   final tabsController = TabsController();
   final consoleController = ConsoleController();
+  final dockerController = DockerController();
+  final remoteTunnelsController = RemoteTunnelsController();
 
-  // ---------- 8. Запускаем приложение ----------
   runApp(
     TunaApp(
       settingsController: settingsController,
       tabsController: tabsController,
       tunnelsController: tunnelsController,
+      dockerController: dockerController,
+      remoteTunnelsController: remoteTunnelsController,
       consoleController: consoleController,
+      notificationsController: notificationsController,
     ),
   );
 
-  // ---------- 9. Окно ----------
+  unawaited(() async {
+    final tunnelProbe = await tunnelsController.reconcileRunningTunnels(
+      apiKey: settingsController.apiKey,
+      token: settingsController.token,
+    );
+    notificationsController.syncRemoteTunnelsNotification(
+      tunnelProbe.remoteActiveCount,
+    );
+
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = packageInfo.version;
+
+    final appUpdateService = AppUpdateService();
+    final update = await appUpdateService.checkForUpdate(
+      currentVersion: currentVersion,
+    );
+
+    notificationsController.syncDesktopAppUpdateNotification(
+      currentVersion: currentVersion,
+      newVersion: update?.latestVersion,
+      releaseUrl: update?.releaseUrl,
+    );
+  }());
+
   doWhenWindowReady(() {
     const initialSize = Size(800, 600);
     appWindow.minSize = initialSize;

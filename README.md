@@ -36,8 +36,7 @@ Tuna-app, also known as the Tuna Desktop Client, is an **unofficial utility** fo
 
 This project is **not** an attempt to misuse someone else’s product, but rather an effort to provide a more convenient interface for people who prefer not to work directly through the terminal or wish to optimize their workflow.
 
-> To use Tuna Desktop Client, you must install the Tuna CLI from the  
-> **[official website](https://tuna.am/docs/getting-started/?type=cli)**.
+> To use Tuna Desktop Client, you must install the Tuna CLI from the **[official website](https://tuna.am/docs/getting-started/?type=cli)**.
 
 I am aware of the existence of the official Tuna Desktop client, but in my view, it does **not perform functions** beyond the absolute minimum.
 

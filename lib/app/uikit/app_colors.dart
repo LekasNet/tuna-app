@@ -13,13 +13,47 @@ class AppColors {
   static const Color darkBorders = Color(0xFF3A3A3A);
   static const Color darkBaseText = Color(0xFFFFFFFF);
   static const Color darkAdditionalText = Color(0xFFA0A0A0);
-  static const Color sidebarBackgroundDark = Color(0xFF111827);  // тёмный слейтовый
+  static const Color sidebarBackgroundDark = Color(
+    0xFF111827,
+  ); // тёмный слейтовый
 
   // Статусы (общие для обеих тем)
   static const Color info = Color(0xFF104AFF);
   static const Color success = Color(0xFF2ECC71);
   static const Color warning = Color(0xFFF1C40F);
   static const Color error = Color(0xFFE74C3C);
+
+  static InputDecorationTheme _buildInputDecorationTheme({
+    required Color borderColor,
+    required Color focusedColor,
+    required Color fillColor,
+    required Color labelColor,
+  }) {
+    final baseBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: borderColor, width: 0.8),
+    );
+
+    return InputDecorationTheme(
+      isDense: true,
+      filled: true,
+      fillColor: fillColor,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      labelStyle: TextStyle(color: labelColor),
+      hintStyle: TextStyle(color: labelColor.withValues(alpha: 0.9)),
+      border: baseBorder,
+      enabledBorder: baseBorder,
+      focusedBorder: baseBorder.copyWith(
+        borderSide: BorderSide(color: focusedColor, width: 1.0),
+      ),
+      errorBorder: baseBorder.copyWith(
+        borderSide: const BorderSide(color: error, width: 1.0),
+      ),
+      focusedErrorBorder: baseBorder.copyWith(
+        borderSide: const BorderSide(color: error, width: 1.0),
+      ),
+    );
+  }
 
   static ThemeData get lightTheme {
     return ThemeData(
@@ -32,17 +66,18 @@ class AppColors {
         foregroundColor: lightBaseText,
         elevation: 0,
       ),
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: lightBaseText),
-      ),
+      textTheme: const TextTheme(bodyMedium: TextStyle(color: lightBaseText)),
       colorScheme: const ColorScheme.light(
         background: lightBackground,
         primary: lightBaseText,
         secondary: lightAdditionalText,
         error: error,
       ),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
+      inputDecorationTheme: _buildInputDecorationTheme(
+        borderColor: lightBorders,
+        focusedColor: lightBaseText,
+        fillColor: const Color(0xFFF7F8FA),
+        labelColor: lightAdditionalText,
       ),
     );
   }
@@ -58,17 +93,18 @@ class AppColors {
         foregroundColor: darkBaseText,
         elevation: 0,
       ),
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(color: darkBaseText),
-      ),
+      textTheme: const TextTheme(bodyMedium: TextStyle(color: darkBaseText)),
       colorScheme: const ColorScheme.dark(
         background: darkBackground,
         primary: darkBaseText,
         secondary: darkAdditionalText,
         error: error,
       ),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
+      inputDecorationTheme: _buildInputDecorationTheme(
+        borderColor: darkBorders,
+        focusedColor: darkBaseText,
+        fillColor: const Color(0xFF1F2937),
+        labelColor: darkAdditionalText,
       ),
     );
   }
