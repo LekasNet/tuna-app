@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:tuna/utils/helpers.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../app/uikit/app_colors.dart';
+import '../../app/uikit/widgets/simple_select_field.dart';
 import '../../core/cli/cli_commands.dart';
 import '../../core/tunnels/tunnel_models.dart';
 import '../../di/tunnels/tunnels_controller.dart';
+import 'widgets/log_console_panel.dart';
+import 'widgets/tunnel_card.dart';
+import 'widgets/tunnel_details_sections.dart';
+import 'widgets/tunnel_form.dart';
+import 'widgets/tunnel_presenters.dart';
 
 import 'package:flutter/services.dart';
 
 class TunnelsScreen extends StatelessWidget {
   final TunnelsController controller;
 
-  const TunnelsScreen({
-    super.key,
-    required this.controller,
-  });
+  const TunnelsScreen({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -61,43 +62,37 @@ class TunnelsScreen extends StatelessWidget {
                 Expanded(
                   child: tunnels.isEmpty
                       ? Center(
-                    child: Text(
-                      'Туннелей пока нет.\nНажми "+" чтобы добавить.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  )
+                          child: Text(
+                            'Туннелей пока нет.\nНажми "+" чтобы добавить.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        )
                       : ListView.separated(
-                    itemCount: tunnels.length,
-                    separatorBuilder: (_, __) =>
-                    const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final tunnel = tunnels[index];
-                      final isRunning =
-                      controller.isRunning(tunnel.id);
+                          itemCount: tunnels.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final tunnel = tunnels[index];
+                            final isRunning = controller.isRunning(tunnel.id);
 
-                      final item = InkWell(
-                        onTap: () => controller.selectTunnel(tunnel.id),
-                        borderRadius: BorderRadius.circular(8),
-                        child: _TunnelListItem(
-                          tunnel: tunnel,
-                          isRunning: isRunning,
-                          onDelete: () =>
-                              controller.removeTunnel(tunnel.id),
-                          onStart: () =>
-                              controller.startTunnel(tunnel),
-                          onStop: () =>
-                              controller.stopTunnel(tunnel),
+                            final item = _SharedTunnelListItem(
+                              tunnel: tunnel,
+                              isRunning: isRunning,
+                              onTap: () => controller.selectTunnel(tunnel.id),
+                              onDelete: () =>
+                                  controller.removeTunnel(tunnel.id),
+                              onStart: () => controller.startTunnel(tunnel),
+                              onStop: () => controller.stopTunnel(tunnel),
+                            );
+
+                            // Обёртка для "появления по порядку"
+                            return _StaggeredListItem(
+                              index: index,
+                              child: item,
+                            );
+                          },
                         ),
-                      );
-
-                      // Обёртка для "появления по порядку"
-                      return _StaggeredListItem(
-                        index: index,
-                        child: item,
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
@@ -118,10 +113,7 @@ class TunnelsScreen extends StatelessWidget {
 
             return FadeTransition(
               opacity: animation,
-              child: SlideTransition(
-                position: slideAnimation,
-                child: child,
-              ),
+              child: SlideTransition(position: slideAnimation, child: child),
             );
           },
           child: body,
@@ -144,24 +136,6 @@ class TunnelsScreen extends StatelessWidget {
 
     String? errorMessage;
 
-    bool isValidIPv4(String ip) {
-      final regex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
-      if (!regex.hasMatch(ip)) return false;
-      final parts = ip.split('.');
-      for (final part in parts) {
-        final n = int.tryParse(part);
-        if (n == null || n < 0 || n > 255) return false;
-      }
-      return true;
-    }
-
-    bool isValidPort(int port) => port > 0 && port <= 65535;
-
-    bool isValidSubdomain(String s) {
-      final regex = RegExp(r'^[a-zA-Z0-9-]{1,63}$');
-      return regex.hasMatch(s);
-    }
-
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -173,60 +147,19 @@ class TunnelsScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Название',
-                        hintText: 'Например, Local API',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: portController,
-                      decoration: const InputDecoration(
-                        labelText: 'Локальный порт',
-                        hintText: 'Например, 8080',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: ipController,
-                      decoration: const InputDecoration(
-                        labelText: 'Локальный IP (опционально)',
-                        hintText: 'Например, 127.0.0.1',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<TunnelType>(
-                      value: selectedType,
-                      decoration: const InputDecoration(
-                        labelText: 'Тип туннеля',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: TunnelType.http, child: Text('HTTP')),
-                        DropdownMenuItem(
-                            value: TunnelType.tcp, child: Text('TCP')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            selectedType = value;
-                            errorMessage = null;
-                          });
-                        }
+                    TunnelFormFields(
+                      nameController: nameController,
+                      portController: portController,
+                      ipController: ipController,
+                      subdomainController: subController,
+                      type: selectedType,
+                      layout: TunnelFormLayout.dialog,
+                      onTypeChanged: (value) {
+                        setState(() {
+                          selectedType = value;
+                          errorMessage = null;
+                        });
                       },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: subController,
-                      enabled: selectedType == TunnelType.http,
-                      decoration: const InputDecoration(
-                        labelText: 'Subdomain (опционально)',
-                        hintText: 'Например, myapp',
-                      ),
                     ),
                     if (errorMessage != null) ...[
                       const SizedBox(height: 12),
@@ -250,41 +183,33 @@ class TunnelsScreen extends StatelessWidget {
                 ),
                 FilledButton(
                   onPressed: () async {
-                    final name = nameController.text.trim();
-                    final ip = ipController.text.trim();
-                    final portText = portController.text.trim();
-                    final sub = subController.text.trim();
-                    final port = int.tryParse(portText);
+                    final validation = TunnelFormValidator.validate(
+                      name: nameController.text,
+                      portText: portController.text,
+                      ip: ipController.text,
+                      subdomain: subController.text,
+                      type: selectedType,
+                    );
 
-                    String? localError;
-
-                    if (name.isEmpty) {
-                      localError = 'Укажи название туннеля';
-                    } else if (port == null || !isValidPort(port)) {
-                      localError = 'Некорректный порт (1–65535)';
-                    } else if (ip.isNotEmpty && !isValidIPv4(ip)) {
-                      localError = 'Некорректный IPv4 адрес';
-                    } else if (selectedType == TunnelType.http &&
-                        sub.isNotEmpty &&
-                        !isValidSubdomain(sub)) {
-                      localError =
-                      'Некорректный subdomain (a-z, A-Z, 0-9, тире, длина ≤ 63)';
-                    }
-
-                    if (localError != null) {
-                      setState(() => errorMessage = localError);
+                    if (!validation.isValid) {
+                      setState(() => errorMessage = validation.errorMessage);
                       return;
                     }
 
+                    final name = nameController.text.trim();
+                    final ip = ipController.text.trim();
+                    final sub = subController.text.trim();
+                    final navigator = Navigator.of(dialogContext);
                     await controller.addTunnel(
                       name: name,
-                      localPort: port!,
+                      localPort: validation.port!,
                       type: selectedType,
                       ip: ip.isEmpty ? null : ip,
                       subdomain: sub.isEmpty ? null : sub,
                     );
 
-                    Navigator.of(dialogContext).pop();
+                    if (!navigator.mounted) return;
+                    navigator.pop();
                   },
                   child: const Text('Сохранить'),
                 ),
@@ -301,126 +226,61 @@ class TunnelsScreen extends StatelessWidget {
 //              ЭЛЕМЕНТ СПИСКА ТУННЕЛЕЙ
 // ---------------------------------------------------------------------------
 
-class _TunnelListItem extends StatelessWidget {
+// ---------------------------------------------------------------------------
+//              СТРАНИЦА ДЕТАЛЕЙ ТУННЕЛЯ
+// ---------------------------------------------------------------------------
+
+class _SharedTunnelListItem extends StatelessWidget {
   final SavedTunnel tunnel;
   final bool isRunning;
+  final VoidCallback onTap;
   final VoidCallback onDelete;
   final VoidCallback onStart;
   final VoidCallback onStop;
 
-  const _TunnelListItem({
+  const _SharedTunnelListItem({
     required this.tunnel,
     required this.isRunning,
+    required this.onTap,
     required this.onDelete,
     required this.onStart,
     required this.onStop,
   });
 
-  Color _statusColor(BuildContext context) {
-    switch (tunnel.status) {
-      case TunnelStatus.active:
-        return AppColors.success;
-      case TunnelStatus.starting:
-        return AppColors.info; // синий
-      case TunnelStatus.failed:
-        return AppColors.error;
-      case TunnelStatus.inactive:
-      default:
-        return Theme.of(context).dividerColor.withOpacity(0.7);
-    }
-  }
-
-  String _typeLabel() {
-    switch (tunnel.type) {
-      case TunnelType.http:
-        return 'HTTP';
-      case TunnelType.tcp:
-        return 'TCP';
-    }
-  }
-
-  String _statusLabel() {
-    switch (tunnel.status) {
-      case TunnelStatus.active:
-        return 'Активен';
-      case TunnelStatus.starting:
-        return 'Запускается';
-      case TunnelStatus.inactive:
-        return 'Не активен';
-      case TunnelStatus.failed:
-        return 'Упал';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(context);
-
     final address = tunnel.ip != null && tunnel.ip!.isNotEmpty
         ? '${tunnel.ip}:${tunnel.localPort}'
         : 'порт ${tunnel.localPort}';
-
+    final statusText = tunnelStatusLabel(tunnel.status);
     final subdomainText =
-    tunnel.subdomain != null && tunnel.subdomain!.isNotEmpty
+        tunnel.subdomain != null && tunnel.subdomain!.isNotEmpty
         ? ' • subdomain: ${tunnel.subdomain}'
         : '';
 
-    final isActive = tunnel.status == TunnelStatus.active;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withOpacity(0.5),
+    return TunnelCard(
+      onTap: onTap,
+      title: tunnel.name,
+      subtitle:
+          '${tunnelTypeLabel(tunnel.type)} • $address • $statusText$subdomainText',
+      activityColor: tunnelStatusColor(context, tunnel.status),
+      activityHint: 'Статус: $statusText',
+      rowCrossAxisAlignment: CrossAxisAlignment.center,
+      actions: [
+        IconButton(
+          icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+          tooltip: isRunning ? 'Остановить' : 'Запустить',
+          onPressed: isRunning ? onStop : onStart,
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: statusColor,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tunnel.name,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_typeLabel()} • $address • ${_statusLabel()}$subdomainText',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(isActive ? Icons.stop : Icons.play_arrow),
-            tooltip: isActive ? 'Остановить' : 'Запустить',
-            onPressed: isActive ? onStop : onStart,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Удалить',
-            onPressed: onDelete,
-          ),
-        ],
-      ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline),
+          tooltip: 'Удалить',
+          onPressed: onDelete,
+        ),
+      ],
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-//              СТРАНИЦА ДЕТАЛЕЙ ТУННЕЛЯ
-// ---------------------------------------------------------------------------
 
 class _TunnelDetailsView extends StatefulWidget {
   final TunnelsController controller;
@@ -439,10 +299,10 @@ class _TunnelDetailsView extends StatefulWidget {
 enum _LogFilter { all, info, warn, error }
 
 class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
-  late TextEditingController _nameController;
-  late TextEditingController _portController;
-  late TextEditingController _ipController;
-  late TextEditingController _subController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _portController;
+  late final TextEditingController _ipController;
+  late final TextEditingController _subController;
   late TunnelType _type;
 
   final ScrollController _logScrollController = ScrollController();
@@ -456,22 +316,26 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
   @override
   void initState() {
     super.initState();
-    _initFromTunnel(tunnel);
+    _nameController = TextEditingController();
+    _portController = TextEditingController();
+    _ipController = TextEditingController();
+    _subController = TextEditingController();
+    _applyTunnelToForm(tunnel);
   }
 
   @override
   void didUpdateWidget(covariant _TunnelDetailsView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tunnel.id != widget.tunnel.id) {
-      _initFromTunnel(widget.tunnel);
+      _applyTunnelToForm(widget.tunnel);
     }
   }
 
-  void _initFromTunnel(SavedTunnel t) {
-    _nameController = TextEditingController(text: t.name);
-    _portController = TextEditingController(text: t.localPort.toString());
-    _ipController = TextEditingController(text: t.ip ?? '');
-    _subController = TextEditingController(text: t.subdomain ?? '');
+  void _applyTunnelToForm(SavedTunnel t) {
+    _nameController.text = t.name;
+    _portController.text = t.localPort.toString();
+    _ipController.text = t.ip ?? '';
+    _subController.text = t.subdomain ?? '';
     _type = t.type;
     _editing = false;
   }
@@ -487,42 +351,49 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
   }
 
   Future<void> _saveChanges() async {
-    final name = _nameController.text.trim();
-    final portText = _portController.text.trim();
-    final ip = _ipController.text.trim();
-    final sub = _subController.text.trim();
-    final port = int.tryParse(portText);
+    final validation = TunnelFormValidator.validate(
+      name: _nameController.text,
+      portText: _portController.text,
+      ip: _ipController.text,
+      subdomain: _subController.text,
+      type: _type,
+    );
 
-    if (name.isEmpty || port == null || port <= 0 || port > 65535) {
+    if (!validation.isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Проверь название и порт (1–65535)'),
+        SnackBar(
+          content: Text(validation.errorMessage ?? 'Проверь данные формы'),
         ),
       );
       return;
     }
 
+    final name = _nameController.text.trim();
+    final ip = _ipController.text.trim();
+    final sub = _subController.text.trim();
+
     final updated = tunnel.copyWith(
       name: name,
-      localPort: port,
+      localPort: validation.port!,
       ip: ip.isEmpty ? null : ip,
       subdomain: sub.isEmpty ? null : sub,
       type: _type,
     );
 
     await controller.updateTunnel(updated);
+    if (!mounted) return;
 
     setState(() {
       _editing = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Туннель сохранён')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Туннель сохранён')));
   }
 
   void _cancelEdit() {
-    _initFromTunnel(tunnel);
+    _applyTunnelToForm(tunnel);
     setState(() {
       _editing = false;
     });
@@ -533,13 +404,13 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     if (!mounted) return;
 
     if (path == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Логи отсутствуют')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Логи отсутствуют')));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Логи сохранены в файл:\n$path')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Логи сохранены в файл:\n$path')));
     }
   }
 
@@ -553,8 +424,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     final statusLabel = _statusLabel(tunnel.status);
 
     final webInterfaceUrl = controller.webInterfaceFor(tunnel.id);
-    final hasWebUI = webInterfaceUrl != null;
-    final canOpenWebUI = hasWebUI && isRunning;
+    final canOpenWebUI = webInterfaceUrl != null && isRunning;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_logScrollController.hasClients) {
@@ -568,199 +438,74 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          // ---------- ШАПКА ----------
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'К списку',
-                onPressed: controller.clearSelection,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Туннель: ${tunnel.name}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const Spacer(),
-              Icon(
-                Icons.circle,
-                size: 10,
-                color: statusColor,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                statusLabel,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(width: 16),
-              if (hasWebUI) ...[
-                Opacity(
-                  opacity: canOpenWebUI ? 1.0 : 0.4,
-                  child: IconButton(
-                    tooltip: 'Web интерфейс',
-                    onPressed: canOpenWebUI
-                        ? () {
-                      launchWeb(webInterfaceUrl);
-                    }
-                        : null,
-                    icon: const Icon(Icons.web, size: 20),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              IconButton(
-                icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                tooltip: isRunning ? 'Остановить' : 'Запустить',
-                onPressed: isRunning
-                    ? () => controller.stopTunnel(tunnel)
-                    : () => controller.startTunnel(tunnel),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.download_outlined),
-                tooltip: 'Экспорт логов',
-                onPressed: _exportLogs,
-              ),
-            ],
+          TunnelDetailsHeader(
+            title: 'Туннель: ${tunnel.name}',
+            statusLabel: statusLabel,
+            statusColor: statusColor,
+            onBack: controller.clearSelection,
+            isRunning: isRunning,
+            onStart: () => controller.startTunnel(tunnel),
+            onStop: () => controller.stopTunnel(tunnel),
+            onExportLogs: _exportLogs,
+            webInterfaceUrl: webInterfaceUrl,
+            onOpenWebInterface: canOpenWebUI
+                ? () => launchWeb(webInterfaceUrl)
+                : null,
           ),
           const SizedBox(height: 16),
 
           // ---------- ПАНЕЛЬ ИНФО / РЕДАКТИРОВАНИЯ ----------
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).dividerColor.withOpacity(0.5),
-              ),
-            ),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 0, right: 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (!_editing)
-                        _buildReadOnlyInfo(context)
-                      else
-                        _buildEditableInfo(context),
-                      if (_editing) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: _cancelEdit,
-                              child: const Text('Отмена'),
-                            ),
-                            const SizedBox(width: 8),
-                            FilledButton(
-                              onPressed: _saveChanges,
-                              child: const Text('Сохранить'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (!_editing)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: IconButton(
-                      icon: const Icon(Icons.edit, size: 18),
-                      tooltip: 'Редактировать',
-                      onPressed: () {
-                        setState(() {
-                          _editing = true;
-                        });
-                      },
-                    ),
-                  ),
-              ],
-            ),
+          TunnelInfoSectionCard(
+            editing: _editing,
+            readOnlyChild: _buildReadOnlyInfo(context),
+            editableChild: _buildEditableInfo(),
+            onEdit: () {
+              setState(() {
+                _editing = true;
+              });
+            },
+            onCancel: _cancelEdit,
+            onSave: _saveChanges,
           ),
           const SizedBox(height: 16),
 
           // ---------- ПАНЕЛЬ ФИЛЬТРА + ОЧИСТКА ВИДИМОГО ЛОГА ----------
-          Row(
-            children: [
-              Text(
-                'Лог',
-                style: Theme.of(context).textTheme.titleMedium,
+          TunnelLogsToolbar(
+            filterField: SimpleSelectField<_LogFilter>(
+              value: _logFilter,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
               ),
-              const SizedBox(width: 16),
-              DropdownButton<_LogFilter>(
-                value: _logFilter,
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() => _logFilter = v);
-                  }
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: _LogFilter.all,
-                    child: Text('Все'),
-                  ),
-                  DropdownMenuItem(
-                    value: _LogFilter.info,
-                    child: Text('INFO'),
-                  ),
-                  DropdownMenuItem(
-                    value: _LogFilter.warn,
-                    child: Text('WARN'),
-                  ),
-                  DropdownMenuItem(
-                    value: _LogFilter.error,
-                    child: Text('ERROR'),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () {
-                  controller.clearVisibleLogs(tunnel.id);
-                },
-                icon: const Icon(Icons.clear_all, size: 18),
-                label: const Text('Очистить видимый лог'),
-              ),
-            ],
+              options: const [
+                SimpleSelectOption(value: _LogFilter.all, label: 'Все'),
+                SimpleSelectOption(value: _LogFilter.info, label: 'INFO'),
+                SimpleSelectOption(value: _LogFilter.warn, label: 'WARN'),
+                SimpleSelectOption(value: _LogFilter.error, label: 'ERROR'),
+              ],
+              onChanged: (v) => setState(() => _logFilter = v),
+            ),
+            onClearVisibleLogs: () => controller.clearVisibleLogs(tunnel.id),
           ),
           const SizedBox(height: 8),
 
           // ---------- КОНСОЛЬ ----------
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.5),
-                ),
-              ),
-              child: Scrollbar(
-                thumbVisibility: true,
-                controller: _logScrollController,
-                child: ListView.builder(
-                  controller: _logScrollController,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: logs.length,
-                  itemBuilder: (context, index) {
-                    final line = logs[index];
-                    return SelectableText.rich(
-                      _buildLogLineSpan(index, line),
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        color: Color(0xFFE0E0E0),
-                      ),
-                    );
-                  },
-                ),
-              ),
+            child: LogConsolePanel(
+              controller: _logScrollController,
+              itemCount: logs.length,
+              emptyContent: const SizedBox.shrink(),
+              itemBuilder: (context, index) {
+                final line = logs[index];
+                return SelectableText.rich(
+                  _buildLogLineSpan(index, line),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Color(0xFFE0E0E0),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -803,9 +548,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
                   width: 100,
                   child: Text(
                     'URL',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade500),
                   ),
                 ),
                 Expanded(
@@ -852,9 +595,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
                   width: 100,
                   child: Text(
                     'Web UI',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade500),
                   ),
                 ),
                 Expanded(
@@ -875,9 +616,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
                 _HoverCopyIcon(
                   tooltip: 'Скопировать Web UI',
                   onTap: () {
-                    Clipboard.setData(
-                      ClipboardData(text: webInterfaceUrl),
-                    );
+                    Clipboard.setData(ClipboardData(text: webInterfaceUrl));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Адрес скопирован'),
@@ -901,119 +640,32 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
         children: [
           SizedBox(
             width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey.shade500,
-              ),
-            ),
+            child: Text(label, style: TextStyle(color: Colors.grey.shade500)),
           ),
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
   }
 
-  Widget _buildEditableInfo(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Название',
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 140,
-              child: TextField(
-                controller: _portController,
-                decoration: const InputDecoration(
-                  labelText: 'Порт',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _ipController,
-                decoration: const InputDecoration(
-                  labelText: 'IP (опционально)',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 200,
-              child: DropdownButtonFormField<TunnelType>(
-                value: _type,
-                decoration: const InputDecoration(
-                  labelText: 'Тип',
-                ),
-                items: const [
-                  DropdownMenuItem(
-                      value: TunnelType.http, child: Text('HTTP')),
-                  DropdownMenuItem(
-                      value: TunnelType.tcp, child: Text('TCP')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _type = value);
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _subController,
-          enabled: _type == TunnelType.http,
-          decoration: const InputDecoration(
-            labelText: 'Subdomain (опционально)',
-          ),
-        ),
-      ],
+  Widget _buildEditableInfo() {
+    return TunnelFormFields(
+      nameController: _nameController,
+      portController: _portController,
+      ipController: _ipController,
+      subdomainController: _subController,
+      type: _type,
+      layout: TunnelFormLayout.panel,
+      onTypeChanged: (value) => setState(() => _type = value),
     );
   }
 
   Color _statusColor(BuildContext context, TunnelStatus status) {
-    switch (status) {
-      case TunnelStatus.active:
-        return AppColors.success;
-      case TunnelStatus.starting:
-        return AppColors.info; // синий
-      case TunnelStatus.failed:
-        return AppColors.error;
-      case TunnelStatus.inactive:
-      default:
-        return Theme.of(context).dividerColor.withOpacity(0.7);
-    }
+    return tunnelStatusColor(context, status);
   }
 
   String _statusLabel(TunnelStatus status) {
-    switch (status) {
-      case TunnelStatus.active:
-        return 'Активен';
-      case TunnelStatus.starting:
-        return 'Запускается';
-      case TunnelStatus.inactive:
-        return 'Не активен';
-      case TunnelStatus.failed:
-        return 'Упал';
-    }
+    return tunnelStatusLabel(status);
   }
 
   // ------------ ЛОГИ: ФИЛЬТР И ПОДСВЕТКА ------------
@@ -1048,7 +700,8 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     const errorTagColor = Color(0xFFE74C3C);
 
     final upper = line.toUpperCase();
-    final isCritical = upper.contains('CRITICAL') ||
+    final isCritical =
+        upper.contains('CRITICAL') ||
         upper.contains('FATAL') ||
         upper.contains('[CRIT');
 
@@ -1099,9 +752,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
         children.add(
           TextSpan(
             text: ' [$time]',
-            style: TextStyle(
-              color: Colors.grey.shade400,
-            ),
+            style: TextStyle(color: Colors.grey.shade400),
           ),
         );
       }
@@ -1127,9 +778,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
       children: [
         TextSpan(
           text: '$lineNumber ',
-          style: TextStyle(
-            color: numberColor,
-          ),
+          style: TextStyle(color: numberColor),
         ),
         contentSpan,
       ],
@@ -1142,10 +791,7 @@ class _HoverCopyIcon extends StatefulWidget {
   final VoidCallback onTap;
   final String tooltip;
 
-  const _HoverCopyIcon({
-    required this.onTap,
-    required this.tooltip,
-  });
+  const _HoverCopyIcon({required this.onTap, required this.tooltip});
 
   @override
   State<_HoverCopyIcon> createState() => _HoverCopyIconState();
@@ -1170,11 +816,7 @@ class _HoverCopyIconState extends State<_HoverCopyIcon> {
               width: 24,
               height: 24,
               child: Center(
-                child: Icon(
-                  Icons.copy,
-                  size: 16,
-                  color: Colors.grey.shade700,
-                ),
+                child: Icon(Icons.copy, size: 16, color: Colors.grey.shade700),
               ),
             ),
           ),
@@ -1192,10 +834,7 @@ class _StaggeredListItem extends StatefulWidget {
   final int index;
   final Widget child;
 
-  const _StaggeredListItem({
-    required this.index,
-    required this.child,
-  });
+  const _StaggeredListItem({required this.index, required this.child});
 
   @override
   State<_StaggeredListItem> createState() => _StaggeredListItemState();
