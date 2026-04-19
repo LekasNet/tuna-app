@@ -28,9 +28,10 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  static const String _selectedFailuresTunnelKey =
+  static const String _selectedTunnelKey =
       'dashboard_selected_failures_tunnel_id';
-  static const String _allTunnelsOption = '__all__';
+  static const String _allTunnelId = '__all__';
+
   static const List<Color> _linePalette = [
     Color(0xFFE74C3C),
     Color(0xFF3498DB),
@@ -39,51 +40,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color(0xFF9B59B6),
     Color(0xFF1ABC9C),
     Color(0xFFD35400),
-    Color(0xFF2E86C1),
+    Color(0xFF16A085),
   ];
 
   final DateTime _sessionStartedAt = DateTime.now();
-  String? _selectedFailuresTunnelId;
+
+  String? _selectedTunnelId;
   bool _selectionLoaded = false;
-  _FailuresPeriod _selectedFailuresPeriod = _FailuresPeriod.session;
+  _FailuresPeriod _period = _FailuresPeriod.session;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedFailuresTunnelSelection();
+    _loadSelection();
   }
 
-  Future<void> _loadSavedFailuresTunnelSelection() async {
+  Future<void> _loadSelection() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedId = prefs.getString(_selectedFailuresTunnelKey);
+    final selected = prefs.getString(_selectedTunnelKey);
     if (!mounted) return;
     setState(() {
-      _selectedFailuresTunnelId = savedId;
+      _selectedTunnelId = selected;
       _selectionLoaded = true;
     });
   }
 
-  Future<void> _saveFailuresTunnelSelection(String id) async {
+  Future<void> _saveSelection(String value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_selectedFailuresTunnelKey, id);
+    await prefs.setString(_selectedTunnelKey, value);
   }
 
-  void _selectFailuresTunnel(String id) {
-    if (_selectedFailuresTunnelId == id) return;
-    setState(() => _selectedFailuresTunnelId = id);
-    _saveFailuresTunnelSelection(id);
+  void _onTunnelSelected(String value) {
+    if (_selectedTunnelId == value) return;
+    setState(() => _selectedTunnelId = value);
+    _saveSelection(value);
   }
 
-  void _selectFailuresPeriod(_FailuresPeriod period) {
-    if (_selectedFailuresPeriod == period) return;
-    setState(() => _selectedFailuresPeriod = period);
+  void _onPeriodSelected(_FailuresPeriod value) {
+    if (_period == value) return;
+    setState(() => _period = value);
   }
 
   Future<void> _toggleTunnel(SavedTunnel tunnel) async {
     final controller = widget.tunnelsController;
-    final isRunning = controller.isRunning(tunnel.id);
-
-    if (isRunning) {
+    if (controller.isRunning(tunnel.id)) {
       await controller.stopTunnel(tunnel);
       return;
     }
@@ -114,17 +114,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     widget.tabsController.selectTab(AppTab.tunnels);
   }
 
-  String _formatDateTime(DateTime? dateTime) {
-    if (dateTime == null) return '—';
-    final date = dateTime.toLocal();
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final year = date.year.toString();
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '$day.$month.$year $hour:$minute';
-  }
-
   _PeriodConfig _periodConfig(_FailuresPeriod period, DateTime now) {
     switch (period) {
       case _FailuresPeriod.session:
@@ -132,92 +121,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final safeDuration = duration <= Duration.zero
             ? const Duration(minutes: 10)
             : duration;
-        final bucketCount = math.max(
+        final pointCount = math.max(
           12,
-          math.min(60, safeDuration.inMinutes ~/ 3),
+          math.min(80, safeDuration.inMinutes ~/ 3),
         );
         return _PeriodConfig(
           start: _sessionStartedAt,
           end: now,
-          bucketCount: bucketCount,
-          label: 'Session',
+          pointCount: pointCount,
+          label: 'session',
         );
       case _FailuresPeriod.h1:
         return _PeriodConfig(
           start: now.subtract(const Duration(hours: 1)),
           end: now,
-          bucketCount: 60,
+          pointCount: 60,
           label: '1h',
         );
       case _FailuresPeriod.h12:
         return _PeriodConfig(
           start: now.subtract(const Duration(hours: 12)),
           end: now,
-          bucketCount: 72,
+          pointCount: 72,
           label: '12h',
         );
       case _FailuresPeriod.day:
         return _PeriodConfig(
           start: now.subtract(const Duration(days: 1)),
           end: now,
-          bucketCount: 48,
-          label: 'Day',
+          pointCount: 48,
+          label: 'day',
         );
       case _FailuresPeriod.week:
         return _PeriodConfig(
           start: now.subtract(const Duration(days: 7)),
           end: now,
-          bucketCount: 56,
-          label: 'Week',
+          pointCount: 56,
+          label: 'week',
         );
       case _FailuresPeriod.month:
         return _PeriodConfig(
           start: now.subtract(const Duration(days: 30)),
           end: now,
-          bucketCount: 60,
-          label: 'Month',
+          pointCount: 60,
+          label: 'month',
         );
     }
   }
 
-  _FailureSeries _buildFailureSeriesByTime({
+  _FailureSeries _buildSeries({
     required List<DateTime> eventsUtc,
     required _PeriodConfig config,
   }) {
-    final points = List<int>.filled(config.bucketCount, 0);
-    final span = config.end.difference(config.start);
-    final spanMicros = span.inMicroseconds;
+    final points = List<int>.filled(config.pointCount, 0);
+    final spanMicros = config.end.difference(config.start).inMicroseconds;
     if (spanMicros <= 0) {
-      return _FailureSeries(
-        points: points,
-        failureCount: 0,
-        attemptsCount: config.bucketCount,
-        start: config.start,
-        end: config.end,
-        label: config.label,
-      );
+      return _FailureSeries(points: points, failureCount: 0);
     }
 
     for (final eventUtc in eventsUtc) {
       final event = eventUtc.toLocal();
       if (event.isBefore(config.start) || event.isAfter(config.end)) continue;
 
-      final fromStart = event.difference(config.start).inMicroseconds;
-      var index = ((fromStart / spanMicros) * config.bucketCount).floor();
+      final micros = event.difference(config.start).inMicroseconds;
+      var index = ((micros / spanMicros) * config.pointCount).floor();
       if (index < 0) index = 0;
-      if (index >= config.bucketCount) index = config.bucketCount - 1;
+      if (index >= config.pointCount) index = config.pointCount - 1;
       points[index] += 1;
     }
 
-    final failuresCount = points.fold<int>(0, (sum, item) => sum + item);
-    return _FailureSeries(
-      points: points,
-      failureCount: failuresCount,
-      attemptsCount: config.bucketCount,
-      start: config.start,
-      end: config.end,
-      label: config.label,
-    );
+    final total = points.fold<int>(0, (sum, value) => sum + value);
+    return _FailureSeries(points: points, failureCount: total);
   }
 
   @override
@@ -244,58 +218,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .length;
         final stableCount = totalCount - failedCount;
         final remoteActiveCount = controller.remoteActiveCount;
-        final knownRunningTotal = activeCount + remoteActiveCount;
+        final localRemoteTotal = activeCount + remoteActiveCount;
 
         final activeRatio = totalCount == 0 ? 0.0 : activeCount / totalCount;
         final stableRatio = totalCount == 0 ? 0.0 : stableCount / totalCount;
-        final localVsRemoteRatio = knownRunningTotal == 0
+        final localRemoteRatio = localRemoteTotal == 0
             ? 0.0
-            : activeCount / knownRunningTotal;
+            : activeCount / localRemoteTotal;
 
-        final selectedFailuresTunnel = tunnels
-            .where((t) => t.id == _selectedFailuresTunnelId)
-            .toList(growable: false);
-
-        SavedTunnel? failuresTunnel;
-        if (selectedFailuresTunnel.isNotEmpty) {
-          failuresTunnel = selectedFailuresTunnel.first;
-        } else if (tunnels.isNotEmpty) {
-          failuresTunnel = tunnels.first;
-          if (_selectionLoaded &&
-              _selectedFailuresTunnelId != failuresTunnel.id) {
+        var selectedTunnelId = _selectedTunnelId ?? _allTunnelId;
+        final selectionValid =
+            selectedTunnelId == _allTunnelId ||
+            tunnels.any((t) => t.id == selectedTunnelId);
+        if (!selectionValid) {
+          selectedTunnelId = _allTunnelId;
+          if (_selectionLoaded && _selectedTunnelId != _allTunnelId) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-              _selectFailuresTunnel(failuresTunnel!.id);
+              _onTunnelSelected(_allTunnelId);
             });
           }
         }
 
-        final now = DateTime.now();
-        final config = _periodConfig(_selectedFailuresPeriod, now);
-        final failureEvents = failuresTunnel == null
-            ? const <DateTime>[]
-            : controller.failureEventsFor(failuresTunnel.id);
-        final failureSeries = _buildFailureSeriesByTime(
-          eventsUtc: failureEvents,
-          config: config,
-        );
+        final periodConfig = _periodConfig(_period, DateTime.now());
+        final showAll = selectedTunnelId == _allTunnelId;
+        final lines = <_FailureLineSeries>[];
 
-        final recentStarted =
-            tunnels
-                .where((t) => t.lastStartedAt != null)
-                .toList(growable: false)
-              ..sort((a, b) => b.lastStartedAt!.compareTo(a.lastStartedAt!));
-        final latestTwo = recentStarted.take(2).toList(growable: false);
-
-        final tunnelOptions = tunnels
-            .map(
-              (tunnel) => SimpleSelectOption<String>(
-                value: tunnel.id,
+        if (showAll) {
+          var colorIndex = 0;
+          for (final tunnel in tunnels) {
+            final series = _buildSeries(
+              eventsUtc: controller.failureEventsFor(tunnel.id),
+              config: periodConfig,
+            );
+            if (series.failureCount <= 0) continue;
+            lines.add(
+              _FailureLineSeries(
+                tunnelId: tunnel.id,
                 label: tunnel.name,
+                color: _linePalette[colorIndex % _linePalette.length],
+                series: series,
               ),
-            )
-            .toList(growable: false);
+            );
+            colorIndex++;
+          }
+        } else if (tunnels.isNotEmpty) {
+          final tunnel = tunnels.firstWhere(
+            (t) => t.id == selectedTunnelId,
+            orElse: () => tunnels.first,
+          );
+          lines.add(
+            _FailureLineSeries(
+              tunnelId: tunnel.id,
+              label: tunnel.name,
+              color: Theme.of(context).colorScheme.error,
+              series: _buildSeries(
+                eventsUtc: controller.failureEventsFor(tunnel.id),
+                config: periodConfig,
+              ),
+            ),
+          );
+        }
 
+        final tunnelOptions = <SimpleSelectOption<String>>[
+          const SimpleSelectOption(value: _allTunnelId, label: 'All'),
+          ...tunnels.map((t) => SimpleSelectOption(value: t.id, label: t.name)),
+        ];
         final periodOptions = const <SimpleSelectOption<_FailuresPeriod>>[
           SimpleSelectOption(value: _FailuresPeriod.session, label: 'session'),
           SimpleSelectOption(value: _FailuresPeriod.h1, label: '1h'),
@@ -305,15 +293,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SimpleSelectOption(value: _FailuresPeriod.month, label: 'month'),
         ];
 
+        final latestStarted =
+            tunnels
+                .where((t) => t.lastStartedAt != null)
+                .toList(growable: false)
+              ..sort((a, b) => b.lastStartedAt!.compareTo(a.lastStartedAt!));
+
         return LayoutBuilder(
           builder: (context, constraints) {
             final height = constraints.maxHeight;
             final ringSectionHeight = height < 560
-                ? 130.0
-                : (height < 680 ? 152.0 : 182.0);
-            final failuresHeight = height < 560
-                ? 140.0
-                : (height < 680 ? 156.0 : 176.0);
+                ? 118.0
+                : (height < 700 ? 136.0 : 158.0);
+            final failuresSectionHeight = height < 560
+                ? 124.0
+                : (height < 700 ? 142.0 : 160.0);
 
             return Padding(
               padding: const EdgeInsets.all(14),
@@ -324,30 +318,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'Dashboard',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 10),
-                  _RingsAdaptiveSection(
+                  const SizedBox(height: 8),
+                  _RingsSection(
                     height: ringSectionHeight,
                     activeRatio: activeRatio,
                     stableRatio: stableRatio,
-                    localRemoteRatio: localVsRemoteRatio,
+                    localRemoteRatio: localRemoteRatio,
                     activeCount: activeCount,
                     totalCount: totalCount,
                     stableCount: stableCount,
-                    knownRunningTotal: knownRunningTotal,
+                    localRemoteTotal: localRemoteTotal,
                     remoteActiveCount: remoteActiveCount,
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
-                    height: failuresHeight,
-                    child: _FailuresTimelineCard(
-                      selectedTunnelId: failuresTunnel?.id,
+                    height: failuresSectionHeight,
+                    child: _FailuresSection(
+                      selectedTunnelId: selectedTunnelId,
                       tunnelOptions: tunnelOptions,
-                      period: _selectedFailuresPeriod,
+                      selectedPeriod: _period,
                       periodOptions: periodOptions,
-                      onTunnelChanged: _selectFailuresTunnel,
-                      onPeriodChanged: _selectFailuresPeriod,
-                      series: failureSeries,
-                      tunnelName: failuresTunnel?.name,
+                      lines: lines,
+                      start: periodConfig.start,
+                      end: periodConfig.end,
+                      periodLabel: periodConfig.label,
+                      showAll: showAll,
+                      onTunnelChanged: _onTunnelSelected,
+                      onPeriodChanged: _onPeriodSelected,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -371,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const SizedBox(height: 8),
                           Expanded(
-                            child: latestTwo.isEmpty
+                            child: latestStarted.isEmpty
                                 ? Center(
                                     child: Text(
                                       'Запуски пока не зафиксированы.',
@@ -381,11 +378,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                   )
                                 : ListView.separated(
-                                    itemCount: latestTwo.length,
+                                    itemCount: math.min(
+                                      2,
+                                      latestStarted.length,
+                                    ),
                                     separatorBuilder: (_, __) =>
                                         const SizedBox(height: 8),
                                     itemBuilder: (context, index) {
-                                      final tunnel = latestTwo[index];
+                                      final tunnel = latestStarted[index];
                                       final isRunning = controller.isRunning(
                                         tunnel.id,
                                       );
@@ -411,12 +411,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         onTap: () => _openTunnelDetails(tunnel),
                                         rowCrossAxisAlignment:
                                             CrossAxisAlignment.center,
-                                        footer: Text(
-                                          'Последний запуск: ${_formatDateTime(tunnel.lastStartedAt)}',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
                                         actions: [
                                           IconButton(
                                             tooltip: isRunning
@@ -462,13 +456,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _PeriodConfig {
   final DateTime start;
   final DateTime end;
-  final int bucketCount;
+  final int pointCount;
   final String label;
 
   const _PeriodConfig({
     required this.start,
     required this.end,
-    required this.bucketCount,
+    required this.pointCount,
     required this.label,
   });
 }
@@ -476,22 +470,25 @@ class _PeriodConfig {
 class _FailureSeries {
   final List<int> points;
   final int failureCount;
-  final int attemptsCount;
-  final DateTime start;
-  final DateTime end;
-  final String label;
 
-  const _FailureSeries({
-    required this.points,
-    required this.failureCount,
-    required this.attemptsCount,
-    required this.start,
-    required this.end,
+  const _FailureSeries({required this.points, required this.failureCount});
+}
+
+class _FailureLineSeries {
+  final String tunnelId;
+  final String label;
+  final Color color;
+  final _FailureSeries series;
+
+  const _FailureLineSeries({
+    required this.tunnelId,
     required this.label,
+    required this.color,
+    required this.series,
   });
 }
 
-class _RingsAdaptiveSection extends StatelessWidget {
+class _RingsSection extends StatelessWidget {
   final double height;
   final double activeRatio;
   final double stableRatio;
@@ -499,10 +496,10 @@ class _RingsAdaptiveSection extends StatelessWidget {
   final int activeCount;
   final int totalCount;
   final int stableCount;
-  final int knownRunningTotal;
+  final int localRemoteTotal;
   final int remoteActiveCount;
 
-  const _RingsAdaptiveSection({
+  const _RingsSection({
     required this.height,
     required this.activeRatio,
     required this.stableRatio,
@@ -510,80 +507,129 @@ class _RingsAdaptiveSection extends StatelessWidget {
     required this.activeCount,
     required this.totalCount,
     required this.stableCount,
-    required this.knownRunningTotal,
+    required this.localRemoteTotal,
     required this.remoteActiveCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Row(
+        children: [
+          Expanded(
+            child: _RingTile(
+              title: 'Active',
+              ratio: activeRatio,
+              centerValue: '$activeCount/$totalCount',
+              color: Colors.green,
+              extraValue: '$activeCount',
+              extraCaption: 'из $totalCount',
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _RingTile(
+              title: 'Stable',
+              ratio: stableRatio,
+              centerValue: '$stableCount/$totalCount',
+              color: Colors.blue,
+              extraValue: '$stableCount',
+              extraCaption: 'без failed',
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _RingTile(
+              title: 'Local/Remote',
+              ratio: localRemoteRatio,
+              centerValue: '$activeCount/$localRemoteTotal',
+              color: Colors.orange,
+              extraValue: '$activeCount / $remoteActiveCount',
+              extraCaption: 'local / remote',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RingTile extends StatelessWidget {
+  final String title;
+  final double ratio;
+  final String centerValue;
+  final Color color;
+  final String extraValue;
+  final String extraCaption;
+
+  const _RingTile({
+    required this.title,
+    required this.ratio,
+    required this.centerValue,
+    required this.color,
+    required this.extraValue,
+    required this.extraCaption,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const gap = 10.0;
-        final available = constraints.maxWidth;
+        final wide = constraints.maxWidth >= 220;
+        final ringSize = math.min(
+          constraints.maxHeight - 16,
+          wide ? 92.0 : 108.0,
+        );
 
-        final tileWithoutLegend = math.min(188.0, (available - 2 * gap) / 3);
-        var showLegend = tileWithoutLegend < 170 && available >= 680;
-        var legendWidth = showLegend ? math.max(150.0, available * 0.2) : 0.0;
-
-        var tileSize = showLegend
-            ? math.min(188.0, (available - legendWidth - 3 * gap) / 3)
-            : tileWithoutLegend;
-
-        if (tileSize < 112 && showLegend) {
-          showLegend = false;
-          legendWidth = 0;
-          tileSize = math.min(188.0, (available - 2 * gap) / 3);
-        }
-
-        tileSize = math.min(tileSize, height);
-
-        final tiles = [
-          _RingSquareTile(
-            size: tileSize,
-            title: 'Active',
-            ratio: activeRatio,
-            centerValue: '$activeCount/$totalCount',
-            color: Colors.green,
-            tooltip: 'Активно: $activeCount из $totalCount локальных тоннелей',
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
           ),
-          _RingSquareTile(
-            size: tileSize,
-            title: 'Stable',
-            ratio: stableRatio,
-            centerValue: '$stableCount/$totalCount',
-            color: Colors.blue,
-            tooltip: 'Без failed-статуса: $stableCount из $totalCount',
-          ),
-          _RingSquareTile(
-            size: tileSize,
-            title: 'Local/Remote',
-            ratio: localRemoteRatio,
-            centerValue: '$activeCount/$knownRunningTotal',
-            color: Colors.orange,
-            tooltip:
-                'Локальные: $activeCount, удалённые активные: $remoteActiveCount',
-          ),
-        ];
-
-        return SizedBox(
-          height: height,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var i = 0; i < tiles.length; i++) ...[
-                if (i > 0) const SizedBox(width: gap),
-                tiles[i],
-              ],
-              if (showLegend) ...[
-                const SizedBox(width: gap),
-                SizedBox(
-                  width: legendWidth,
-                  height: tileSize,
-                  child: _RingsLegend(
-                    activeCount: activeCount,
-                    totalCount: totalCount,
-                    stableCount: stableCount,
-                    remoteActiveCount: remoteActiveCount,
+              SizedBox(
+                width: ringSize,
+                height: ringSize,
+                child: _AnimatedRing(
+                  value: ratio,
+                  color: color,
+                  centerValue: centerValue,
+                ),
+              ),
+              if (wide) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        extraValue,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        extraCaption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -595,204 +641,57 @@ class _RingsAdaptiveSection extends StatelessWidget {
   }
 }
 
-class _RingSquareTile extends StatelessWidget {
-  final double size;
-  final String title;
-  final double ratio;
-  final String centerValue;
-  final Color color;
-  final String tooltip;
-
-  const _RingSquareTile({
-    required this.size,
-    required this.title,
-    required this.ratio,
-    required this.centerValue,
-    required this.color,
-    required this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        width: size,
-        height: size,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: _AnimatedRing(
-                maxSize: size - 28,
-                value: ratio.clamp(0.0, 1.0),
-                color: color,
-                centerTop: '${(ratio.clamp(0.0, 1.0) * 100).round()}%',
-                centerBottom: centerValue,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RingsLegend extends StatelessWidget {
-  final int activeCount;
-  final int totalCount;
-  final int stableCount;
-  final int remoteActiveCount;
-
-  const _RingsLegend({
-    required this.activeCount,
-    required this.totalCount,
-    required this.stableCount,
-    required this.remoteActiveCount,
-  });
-
-  Widget _item(
-    BuildContext context, {
-    required Color color,
-    required String title,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(value, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _item(
-            context,
-            color: Colors.green,
-            title: 'Active',
-            value: '$activeCount/$totalCount',
-          ),
-          const SizedBox(height: 8),
-          _item(
-            context,
-            color: Colors.blue,
-            title: 'Stable',
-            value: '$stableCount/$totalCount',
-          ),
-          const SizedBox(height: 8),
-          _item(
-            context,
-            color: Colors.orange,
-            title: 'Remote',
-            value: '$remoteActiveCount',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AnimatedRing extends StatelessWidget {
-  final double maxSize;
   final double value;
   final Color color;
-  final String centerTop;
-  final String centerBottom;
+  final String centerValue;
 
   const _AnimatedRing({
-    required this.maxSize,
     required this.value,
     required this.color,
-    required this.centerTop,
-    required this.centerBottom,
+    required this.centerValue,
   });
 
   @override
   Widget build(BuildContext context) {
-    final size = math.max(64.0, math.min(132.0, maxSize));
-    final trackColor = Theme.of(context).dividerColor.withValues(alpha: 0.35);
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: TweenAnimationBuilder<double>(
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeOutCubic,
-        tween: Tween<double>(begin: 0, end: value.clamp(0.0, 1.0)),
-        builder: (context, animatedValue, _) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: Size.square(size),
-                painter: _RingPainter(
-                  value: animatedValue,
-                  color: color,
-                  trackColor: trackColor,
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: 0, end: value.clamp(0.0, 1.0)),
+      builder: (context, animated, _) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: const Size.square(96),
+              painter: _RingPainter(
+                value: animated,
+                color: color,
+                trackColor: Theme.of(
+                  context,
+                ).dividerColor.withValues(alpha: 0.35),
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${(animated * 100).round()}%',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    centerTop,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    centerBottom,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(fontSize: 10),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
+                Text(
+                  centerValue,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -810,33 +709,24 @@ class _RingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const strokeWidth = 8.0;
-    final radius = (size.shortestSide - strokeWidth) / 2;
+    const stroke = 8.0;
+    final radius = (size.shortestSide - stroke) / 2;
     final center = Offset(size.width / 2, size.height / 2);
     final rect = Rect.fromCircle(center: center, radius: radius);
 
     final trackPaint = Paint()
       ..color = trackColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
     canvas.drawCircle(center, radius, trackPaint);
-
-    if (value <= 0) return;
 
     final arcPaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      2 * math.pi * value.clamp(0.0, 1.0),
-      false,
-      arcPaint,
-    );
+    canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * value, false, arcPaint);
   }
 
   @override
@@ -847,118 +737,78 @@ class _RingPainter extends CustomPainter {
   }
 }
 
-class _FailuresTimelineCard extends StatelessWidget {
-  final String? selectedTunnelId;
+class _FailuresSection extends StatelessWidget {
+  final String selectedTunnelId;
   final List<SimpleSelectOption<String>> tunnelOptions;
-  final _FailuresPeriod period;
+  final _FailuresPeriod selectedPeriod;
   final List<SimpleSelectOption<_FailuresPeriod>> periodOptions;
+  final List<_FailureLineSeries> lines;
+  final DateTime start;
+  final DateTime end;
+  final String periodLabel;
+  final bool showAll;
   final ValueChanged<String> onTunnelChanged;
   final ValueChanged<_FailuresPeriod> onPeriodChanged;
-  final _FailureSeries series;
-  final String? tunnelName;
 
-  const _FailuresTimelineCard({
+  const _FailuresSection({
     required this.selectedTunnelId,
     required this.tunnelOptions,
-    required this.period,
+    required this.selectedPeriod,
     required this.periodOptions,
+    required this.lines,
+    required this.start,
+    required this.end,
+    required this.periodLabel,
+    required this.showAll,
     required this.onTunnelChanged,
     required this.onPeriodChanged,
-    required this.series,
-    required this.tunnelName,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasTunnels = tunnelOptions.isNotEmpty && selectedTunnelId != null;
-    final tooltip = hasTunnels
-        ? 'Сбои (${series.label}) для "$tunnelName": ${series.failureCount}'
-        : 'Нет тоннелей для анализа сбоев';
-
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 860;
-                if (compact) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Сбои по времени',
-                        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      child: Column(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final periodWidth = constraints.maxWidth < 420 ? 78.0 : 95.0;
+              return Row(
+                children: [
+                  Text('Сбои', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: periodWidth,
+                    height: 30,
+                    child: SimpleSelectField<_FailuresPeriod>(
+                      value: selectedPeriod,
+                      options: periodOptions,
+                      onChanged: onPeriodChanged,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 120,
-                            height: 30,
-                            child: SimpleSelectField<_FailuresPeriod>(
-                              value: period,
-                              options: periodOptions,
-                              onChanged: onPeriodChanged,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              itemExtent: 28,
-                              itemSpacing: 4,
-                              maxVisibleItems: 7,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (hasTunnels)
-                            Expanded(
-                              child: SizedBox(
-                                height: 30,
-                                child: SimpleSelectField<String>(
-                                  value: selectedTunnelId!,
-                                  options: tunnelOptions,
-                                  onChanged: onTunnelChanged,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  itemExtent: 28,
-                                  itemSpacing: 4,
-                                  maxVisibleItems: 7,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Text(
-                      'Сбои по времени',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      itemExtent: 28,
+                      itemSpacing: 4,
+                      maxVisibleItems: 7,
                     ),
-                    const Spacer(),
-                    SizedBox(
-                      width: 120,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
                       height: 30,
-                      child: SimpleSelectField<_FailuresPeriod>(
-                        value: period,
-                        options: periodOptions,
-                        onChanged: onPeriodChanged,
+                      child: SimpleSelectField<String>(
+                        value: selectedTunnelId,
+                        options: tunnelOptions,
+                        onChanged: onTunnelChanged,
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
+                          horizontal: 8,
                           vertical: 4,
                         ),
                         itemExtent: 28,
@@ -966,121 +816,139 @@ class _FailuresTimelineCard extends StatelessWidget {
                         maxVisibleItems: 7,
                       ),
                     ),
-                    if (hasTunnels) ...[
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 260,
-                        height: 30,
-                        child: SimpleSelectField<String>(
-                          value: selectedTunnelId!,
-                          options: tunnelOptions,
-                          onChanged: onTunnelChanged,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          itemExtent: 28,
-                          itemSpacing: 4,
-                          maxVisibleItems: 7,
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-              },
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _FailuresChart(
+              lines: lines,
+              start: start,
+              end: end,
+              periodLabel: periodLabel,
+              showAll: showAll,
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: hasTunnels
-                  ? _FailuresLineChart(series: series)
-                  : Center(
-                      child: Text(
-                        'Нет данных для графика',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _FailuresLineChart extends StatelessWidget {
-  final _FailureSeries series;
+class _FailuresChart extends StatelessWidget {
+  final List<_FailureLineSeries> lines;
+  final DateTime start;
+  final DateTime end;
+  final String periodLabel;
+  final bool showAll;
 
-  const _FailuresLineChart({required this.series});
+  const _FailuresChart({
+    required this.lines,
+    required this.start,
+    required this.end,
+    required this.periodLabel,
+    required this.showAll,
+  });
 
-  String _formatAxis(DateTime value) {
-    final d = value.toLocal();
+  String _fmt(DateTime dateTime) {
+    final d = dateTime.toLocal();
     final day = d.day.toString().padLeft(2, '0');
     final month = d.month.toString().padLeft(2, '0');
     final hour = d.hour.toString().padLeft(2, '0');
     final minute = d.minute.toString().padLeft(2, '0');
-    if (series.label == 'Week' || series.label == 'Month') {
-      return '$day.$month';
-    }
+    if (periodLabel == 'week' || periodLabel == 'month') return '$day.$month';
     return '$hour:$minute';
   }
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _FailuresLinePainter(
-        points: series.points,
-        lineColor: Theme.of(context).colorScheme.error,
-        fillColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.14),
-        gridColor: Theme.of(context).dividerColor.withValues(alpha: 0.25),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              _formatAxis(series.start),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontSize: 10),
-            ),
-            const Spacer(),
-            Text(
-              _formatAxis(series.end),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontSize: 10),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'Σ ${series.failureCount}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontSize: 10),
-            ),
-          ],
+    final visible = showAll
+        ? lines
+              .where((line) => line.series.failureCount > 0)
+              .toList(growable: false)
+        : lines;
+
+    if (visible.isEmpty) {
+      return Center(
+        child: Text(
+          'Нет сбоев за выбранный период',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
-      ),
+      );
+    }
+
+    final totalFailures = visible.fold<int>(
+      0,
+      (sum, line) => sum + line.series.failureCount,
+    );
+
+    return Stack(
+      children: [
+        CustomPaint(
+          painter: _FailuresPainter(
+            lines: visible,
+            gridColor: Theme.of(context).dividerColor.withValues(alpha: 0.25),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 320;
+              return Stack(
+                children: [
+                  Positioned(
+                    left: 6,
+                    bottom: 0,
+                    child: Text(
+                      _fmt(start),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                    ),
+                  ),
+                  Positioned(
+                    right: 6,
+                    bottom: 0,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!compact) ...[
+                          Text(
+                            _fmt(end),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(
+                          'sum $totalFailures',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _FailuresLinePainter extends CustomPainter {
-  final List<int> points;
-  final Color lineColor;
-  final Color fillColor;
+class _FailuresPainter extends CustomPainter {
+  final List<_FailureLineSeries> lines;
   final Color gridColor;
 
-  _FailuresLinePainter({
-    required this.points,
-    required this.lineColor,
-    required this.fillColor,
-    required this.gridColor,
-  });
+  _FailuresPainter({required this.lines, required this.gridColor});
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
+    if (lines.isEmpty) return;
 
     const left = 6.0;
     const top = 6.0;
@@ -1100,51 +968,66 @@ class _FailuresLinePainter extends CustomPainter {
       canvas.drawLine(Offset(left, y), Offset(left + chartWidth, y), gridPaint);
     }
 
-    final maxValue = math.max(1, points.reduce(math.max));
-    final linePath = Path();
-    final areaPath = Path();
-
-    for (var i = 0; i < points.length; i++) {
-      final t = points.length == 1 ? 0.0 : i / (points.length - 1);
-      final x = left + chartWidth * t;
-      final normalized = points[i] / maxValue;
-      final y = top + chartHeight - chartHeight * normalized;
-      final point = Offset(x, y);
-
-      if (i == 0) {
-        linePath.moveTo(point.dx, point.dy);
-        areaPath.moveTo(point.dx, top + chartHeight);
-        areaPath.lineTo(point.dx, point.dy);
-      } else {
-        linePath.lineTo(point.dx, point.dy);
-        areaPath.lineTo(point.dx, point.dy);
-      }
+    var maxY = 1;
+    for (final line in lines) {
+      if (line.series.points.isEmpty) continue;
+      final currentMax = line.series.points.reduce(math.max);
+      if (currentMax > maxY) maxY = currentMax;
     }
 
-    areaPath.lineTo(left + chartWidth, top + chartHeight);
-    areaPath.close();
+    for (final line in lines) {
+      final points = line.series.points;
+      if (points.isEmpty) continue;
 
-    final fillPaint = Paint()
-      ..color = fillColor
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(areaPath, fillPaint);
+      final path = Path();
+      Offset? lastPoint;
+      for (var i = 0; i < points.length; i++) {
+        final t = points.length == 1 ? 0.0 : i / (points.length - 1);
+        final x = left + chartWidth * t;
+        final y = top + chartHeight - chartHeight * (points[i] / maxY);
+        lastPoint = Offset(x, y);
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
 
-    final linePaint = Paint()
-      ..color = lineColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(linePath, linePaint);
+      final linePaint = Paint()
+        ..color = line.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(path, linePaint);
+      if (lastPoint != null) {
+        final endpointPaint = Paint()
+          ..color = line.color
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(lastPoint, 3, endpointPaint);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _FailuresLinePainter oldDelegate) {
-    if (oldDelegate.points.length != points.length) return true;
-    for (var i = 0; i < points.length; i++) {
-      if (oldDelegate.points[i] != points[i]) return true;
+  bool shouldRepaint(covariant _FailuresPainter oldDelegate) {
+    if (oldDelegate.lines.length != lines.length) return true;
+    for (var i = 0; i < lines.length; i++) {
+      final current = lines[i];
+      final previous = oldDelegate.lines[i];
+      if (current.tunnelId != previous.tunnelId ||
+          current.color != previous.color) {
+        return true;
+      }
+      if (current.series.points.length != previous.series.points.length) {
+        return true;
+      }
+      for (var j = 0; j < current.series.points.length; j++) {
+        if (current.series.points[j] != previous.series.points[j]) {
+          return true;
+        }
+      }
     }
-    return oldDelegate.lineColor != lineColor ||
-        oldDelegate.fillColor != fillColor ||
-        oldDelegate.gridColor != gridColor;
+    return oldDelegate.gridColor != gridColor;
   }
 }
