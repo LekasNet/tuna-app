@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "ru.lek4s.tuna" "\0"
-            VALUE "FileDescription", "tuna" "\0"
+            VALUE "FileDescription", "Tuna Desktop" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "tuna" "\0"
+            VALUE "InternalName", "tuna_desktop" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 ru.lek4s.tuna. All rights reserved." "\0"
-            VALUE "OriginalFilename", "tuna.exe" "\0"
-            VALUE "ProductName", "tuna" "\0"
+            VALUE "OriginalFilename", "tuna_desktop.exe" "\0"
+            VALUE "ProductName", "Tuna Desktop" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

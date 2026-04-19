@@ -17,5 +17,5 @@ Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesu
 Source: "assets\icon\Tuna_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Tuna Desktop"; Filename: "{app}\Tuna.exe"; IconFilename: "{app}\Tuna_icon.ico"
-Name: "{commondesktop}\Tuna Desktop"; Filename: "{app}\Tuna.exe"; IconFilename: "{app}\Tuna_icon.ico"
+Name: "{group}\Tuna Desktop"; Filename: "{app}\tuna_desktop.exe"; IconFilename: "{app}\Tuna_icon.ico"
+Name: "{commondesktop}\Tuna Desktop"; Filename: "{app}\tuna_desktop.exe"; IconFilename: "{app}\Tuna_icon.ico"
