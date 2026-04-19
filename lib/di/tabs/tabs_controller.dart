@@ -1,11 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum AppTab {
-  dashboard,
-  tunnels,
-  settings,
-  console
-}
+enum AppTab { dashboard, tunnels, docker, remoteTunnels, settings, console }
 
 class TabsController extends ChangeNotifier {
   AppTab _current = AppTab.settings; // по умолчанию настройки, можно поменять
