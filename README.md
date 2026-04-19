@@ -185,3 +185,11 @@ flutter run -d macos
 ## 📄 License
 
 MIT — feel free to use and modify.
+
+This is an unofficial client for Tuna CLI.
+
+This project:
+- does not redistribute Tuna software
+- requires official Tuna CLI installation
+- does not modify or bypass Tuna services
+- stores user data locally only
