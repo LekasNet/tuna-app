@@ -50,6 +50,16 @@ It allows you to manage tunnels, view logs, use a built-in console, and configur
 
 ![preview](./assets/readme/preview.png)
 
+### New modules
+
+| Dashboard | Remote tunnels and notifications |
+| --- | --- |
+| ![dashboard](./assets/readme/dashboard.png) | ![remote](./assets/readme/dedicated.png) |
+
+| Docker containers | Docker container details |
+| --- | --- |
+| ![docker](./assets/readme/docker.png) | ![container](./assets/readme/container.png) |
+
 > ⚠️ **Important!**  
 > The **Linux** and **macOS** versions are implemented, but **have not been tested on actual devices**.  
 > Theoretically they should work, but their correctness is not guaranteed.
@@ -92,6 +102,16 @@ Build outputs:
 ## 🚀 Features
 
 * Management of HTTP and TCP tunnels
+* Dashboard tab with circular metrics, failures timeline (including `All` overlay), and last started tunnels
+* Remote tunnels tab: active remote list from Tuna API, local/non-local ownership marker by endpoint URL, open and force stop actions
+* Docker tab: containers list, container drill-down, tunnel process discovery inside containers, container/tunnel logs, force stop of in-container tunnels
+* Notifications panel with actionable cards (CLI updates, desktop app releases, active remote tunnels)
+* In-app tuna CLI update actions:
+  * Windows: `winget upgrade --id yuccastream.tuna`
+  * macOS: `brew upgrade tuna`
+  * Linux: `sh -c "$(curl -sSLf https://releases.tuna.am/tuna/get.sh)"`
+* Desktop app update check against GitHub releases (`LekasNet/tuna-app`)
+* Startup reconciliation of running tunnels (local running processes + remote active count)
 * Real-time tunnel status display
 * Detailed tunnel information: URL, Web UI, forwarding, logs
 * Integrated console:
@@ -100,6 +120,7 @@ Build outputs:
   * PowerShell / bash mode (depending on platform)
   * colored output, auto-scrolling, line numbers
   * command history with ↑ ↓
+* Tunnel log performance guard: only latest 750 lines are rendered in UI while full logs are preserved for export
 * Full support for light and dark themes
 * Custom path support for the `tuna` CLI
 * Automatic detection of `tuna.exe` / `tuna`
