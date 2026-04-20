@@ -1,7 +1,7 @@
 [Setup]
 AppId={{D2D2E4A5-7C8F-4D3A-9A2D-1234567890AB}
 AppName=Tuna Desktop
-AppVersion=1.3.0
+AppVersion=1.3.1
 DefaultDirName={autopf}\TunaDesktop
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
