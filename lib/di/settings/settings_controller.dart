@@ -6,13 +6,8 @@ import 'package:flutter/foundation.dart';
 
 import 'settings_service.dart';
 import '../../core/cli/cli_controller.dart';
-import '../../utils/helpers.dart';
 
-enum TokenStatus {
-  none,
-  savedOk,
-  savedButFailedCheck,
-}
+enum TokenStatus { none, savedOk, savedButFailedCheck }
 
 class SettingsController extends ChangeNotifier {
   final SettingsService _service;
@@ -22,6 +17,7 @@ class SettingsController extends ChangeNotifier {
 
   // theme
   AppThemeMode themeMode = AppThemeMode.system;
+  AppLanguage language = AppLanguage.system;
 
   // credentials
   String _token = '';
@@ -44,6 +40,7 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> load() async {
     themeMode = await _service.loadThemeMode();
+    language = await _service.loadLanguage();
     _token = (await _service.loadToken()) ?? '';
     apiKey = await _service.loadApiKey();
     tunaPath = await _service.loadTunaPath();
@@ -69,6 +66,12 @@ class SettingsController extends ChangeNotifier {
   Future<void> updateThemeMode(AppThemeMode mode) async {
     themeMode = mode;
     await _service.saveThemeMode(mode);
+    notifyListeners();
+  }
+
+  Future<void> updateLanguage(AppLanguage value) async {
+    language = value;
+    await _service.saveLanguage(value);
     notifyListeners();
   }
 
@@ -103,19 +106,25 @@ class SettingsController extends ChangeNotifier {
   // TOKEN — SYNC WITH YAML
   // ---------------------------------------------------------------------------
 
+  String get _tunaExecutable {
+    final configuredPath = tunaPath?.trim();
+    if (configuredPath != null && configuredPath.isNotEmpty) {
+      return configuredPath;
+    }
+    return _cli.executablePath;
+  }
+
   Future<void> syncTokenWithTunaConfig() async {
     try {
-      final exe = _cli.executablePath ??
-          tunaPath ??
-          (Platform.isWindows ? 'tuna.exe' : 'tuna');
+      final exe = _tunaExecutable;
 
-      final result = await Process.run(
-        exe,
-        ['config', 'check'],
-        runInShell: false,
-      );
+      final result = await Process.run(exe, [
+        'config',
+        'check',
+      ], runInShell: false);
 
-      final output = (result.stdout?.toString() ?? '') +
+      final output =
+          (result.stdout?.toString() ?? '') +
           '\n' +
           (result.stderr?.toString() ?? '');
 
@@ -181,16 +190,13 @@ class SettingsController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> _validateTokenViaTunnel() async {
-    final exe = _cli.executablePath ??
-        tunaPath ??
-        (Platform.isWindows ? 'tuna.exe' : 'tuna');
+    final exe = _tunaExecutable;
 
     try {
-      final process = await Process.start(
-        exe,
-        ['http', '8080'],
-        runInShell: Platform.isWindows,
-      );
+      final process = await Process.start(exe, [
+        'http',
+        '8080',
+      ], runInShell: Platform.isWindows);
 
       final completer = Completer<void>();
 
@@ -198,30 +204,32 @@ class SettingsController extends ChangeNotifier {
           .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter())
           .listen((line) {
-        line = line.trim();
+            line = line.trim();
 
-        final acc = RegExp(r'Account:\s*(.*)').firstMatch(line);
-        if (acc != null) {
-          accountName = acc.group(1)!.trim();
-          _service.saveAccountName(accountName);
-        }
+            final acc = RegExp(r'Account:\s*(.*)').firstMatch(line);
+            if (acc != null) {
+              accountName = acc.group(1)!.trim();
+              _service.saveAccountName(accountName);
+            }
 
-        final exp = RegExp(r'Expires:\s*(.*)').firstMatch(line);
-        if (exp != null) {
-          subscriptionExpiry = exp.group(1)!.trim();
-          _service.saveExpiryDate(subscriptionExpiry);
-          completer.complete();
-        }
-      });
+            final exp = RegExp(r'Expires:\s*(.*)').firstMatch(line);
+            if (exp != null) {
+              subscriptionExpiry = exp.group(1)!.trim();
+              _service.saveExpiryDate(subscriptionExpiry);
+              completer.complete();
+            }
+          });
 
       process.stderr.listen((_) {});
 
-      unawaited(process.exitCode.then((code) {
-        if (!completer.isCompleted) {
-          _tokenStatus = TokenStatus.savedButFailedCheck;
-          completer.complete();
-        }
-      }));
+      unawaited(
+        process.exitCode.then((code) {
+          if (!completer.isCompleted) {
+            _tokenStatus = TokenStatus.savedButFailedCheck;
+            completer.complete();
+          }
+        }),
+      );
 
       await completer.future;
 

@@ -4,12 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-enum ConsoleLineType {
-  command,
-  stdout,
-  stderr,
-  info,
-}
+enum ConsoleLineType { command, stdout, stderr, info }
 
 class ConsoleLine {
   final ConsoleLineType type;
@@ -27,12 +22,13 @@ class ConsoleLine {
   }) : timestamp = timestamp ?? DateTime.now();
 }
 
-enum ConsoleMode {
-  embedded,
-  pwsh,
-}
+enum ConsoleMode { embedded, pwsh }
 
 class ConsoleController extends ChangeNotifier {
+  ConsoleController() {
+    unawaited(_loadConsoleFontFamily());
+  }
+
   final List<ConsoleLine> _lines = [];
   List<ConsoleLine> get lines => List.unmodifiable(_lines);
 
@@ -45,6 +41,14 @@ class ConsoleController extends ChangeNotifier {
 
   ConsoleMode _mode = ConsoleMode.embedded;
   ConsoleMode get mode => _mode;
+  String _powerShellExecutable = 'PowerShell';
+  String get powerShellPrompt => _powerShellExecutable.replaceAll(
+    RegExp(r'\.exe$', caseSensitive: false),
+    '',
+  );
+
+  String _consoleFontFamily = 'Consolas';
+  String get consoleFontFamily => _consoleFontFamily;
 
   /// История команд (общая для двух режимов).
   final List<String> _history = [];
@@ -138,8 +142,7 @@ class ConsoleController extends ChangeNotifier {
     final candidates = <String>{
       ..._history,
       ..._staticSuggestions,
-    }.where((c) => c.startsWith(trimmed)).toList()
-      ..sort();
+    }.where((c) => c.startsWith(trimmed)).toList()..sort();
 
     if (candidates.isEmpty) {
       return current;
@@ -173,7 +176,7 @@ class ConsoleController extends ChangeNotifier {
         ConsoleLine(
           type: ConsoleLineType.info,
           text: '^C',
-          cwdSnapshot: 'pwsh',
+          cwdSnapshot: powerShellPrompt,
         ),
       );
 
@@ -198,11 +201,7 @@ class ConsoleController extends ChangeNotifier {
     if (process == null) return;
 
     _appendLine(
-      ConsoleLine(
-        type: ConsoleLineType.info,
-        text: '^C',
-        cwdSnapshot: _cwd,
-      ),
+      ConsoleLine(type: ConsoleLineType.info, text: '^C', cwdSnapshot: _cwd),
     );
 
     try {
@@ -227,8 +226,8 @@ class ConsoleController extends ChangeNotifier {
   Future<void> _handleCdCommand(String cmd) async {
     final arg = cmd.substring(2).trim(); // после "cd"
     if (arg.isEmpty) {
-      final home = Platform.environment['HOME'] ??
-          Platform.environment['USERPROFILE'];
+      final home =
+          Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
       if (home != null && home.isNotEmpty) {
         _cwd = home;
         _appendLine(
@@ -245,8 +244,8 @@ class ConsoleController extends ChangeNotifier {
 
     String targetPath;
     if (arg == '~') {
-      final home = Platform.environment['HOME'] ??
-          Platform.environment['USERPROFILE'];
+      final home =
+          Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
       if (home == null || home.isEmpty) {
         _appendLine(
           ConsoleLine(
@@ -263,9 +262,7 @@ class ConsoleController extends ChangeNotifier {
       if (candidate.isAbsolute) {
         targetPath = candidate.path;
       } else {
-        targetPath = Directory(
-          '$_cwd${Platform.pathSeparator}$arg',
-        ).path;
+        targetPath = Directory('$_cwd${Platform.pathSeparator}$arg').path;
       }
     }
 
@@ -312,11 +309,7 @@ class ConsoleController extends ChangeNotifier {
     _historyIndex = _history.length;
 
     _appendLine(
-      ConsoleLine(
-        type: ConsoleLineType.command,
-        text: cmd,
-        cwdSnapshot: _cwd,
-      ),
+      ConsoleLine(type: ConsoleLineType.command, text: cmd, cwdSnapshot: _cwd),
     );
 
     if (cmd == 'cd' || cmd.startsWith('cd ')) {
@@ -333,13 +326,7 @@ class ConsoleController extends ChangeNotifier {
 
       if (Platform.isWindows) {
         shell = 'powershell.exe';
-        args = [
-          '-NoLogo',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-Command',
-          cmd,
-        ];
+        args = ['-NoLogo', '-ExecutionPolicy', 'Bypass', '-Command', cmd];
       } else {
         shell = 'bash';
         args = ['-lc', cmd];
@@ -360,27 +347,27 @@ class ConsoleController extends ChangeNotifier {
           .transform(decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _appendLine(
-          ConsoleLine(
-            type: ConsoleLineType.stdout,
-            text: line,
-            cwdSnapshot: _cwd,
-          ),
-        );
-      });
+            _appendLine(
+              ConsoleLine(
+                type: ConsoleLineType.stdout,
+                text: line,
+                cwdSnapshot: _cwd,
+              ),
+            );
+          });
 
       final stderrSub = process.stderr
           .transform(decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _appendLine(
-          ConsoleLine(
-            type: ConsoleLineType.stderr,
-            text: line,
-            cwdSnapshot: _cwd,
-          ),
-        );
-      });
+            _appendLine(
+              ConsoleLine(
+                type: ConsoleLineType.stderr,
+                text: line,
+                cwdSnapshot: _cwd,
+              ),
+            );
+          });
 
       final exitCode = await process.exitCode;
 
@@ -414,7 +401,7 @@ class ConsoleController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   String _snapshotCwdForLog() {
-    if (_mode == ConsoleMode.pwsh) return 'pwsh';
+    if (_mode == ConsoleMode.pwsh) return powerShellPrompt;
     return _cwd;
   }
 
@@ -422,42 +409,19 @@ class ConsoleController extends ChangeNotifier {
     if (_pwshProcess != null) return;
 
     try {
-      String exe;
-      List<String> args;
+      final exe = await _resolvePowerShellExecutable();
+      final args = <String>['-NoLogo'];
 
-      if (Platform.isWindows) {
-        // пробуем pwsh, если нет — powershell.exe
-        exe = 'pwsh.exe';
-        args = ['-NoLogo'];
-        try {
-          final test = await Process.start(
-            exe,
-            args,
-            runInShell: true,
-          );
-          test.kill();
-        } on ProcessException {
-          exe = 'powershell.exe';
-          args = ['-NoLogo'];
-        }
-      } else {
-        exe = 'pwsh';
-        args = ['-NoLogo'];
-      }
-
-      final p = await Process.start(
-        exe,
-        args,
-        runInShell: Platform.isWindows,
-      );
+      final p = await Process.start(exe, args, runInShell: Platform.isWindows);
 
       _pwshProcess = p;
+      _powerShellExecutable = exe;
 
       _appendLine(
         ConsoleLine(
           type: ConsoleLineType.info,
           text: 'Started PowerShell session ($exe)',
-          cwdSnapshot: 'pwsh',
+          cwdSnapshot: powerShellPrompt,
         ),
       );
 
@@ -467,48 +431,50 @@ class ConsoleController extends ChangeNotifier {
           .transform(decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _appendLine(
-          ConsoleLine(
-            type: ConsoleLineType.stdout,
-            text: line,
-            cwdSnapshot: 'pwsh',
-          ),
-        );
-      });
+            _appendLine(
+              ConsoleLine(
+                type: ConsoleLineType.stdout,
+                text: line,
+                cwdSnapshot: powerShellPrompt,
+              ),
+            );
+          });
 
       _pwshStderrSub = p.stderr
           .transform(decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _appendLine(
-          ConsoleLine(
-            type: ConsoleLineType.stderr,
-            text: line,
-            cwdSnapshot: 'pwsh',
-          ),
-        );
-      });
+            _appendLine(
+              ConsoleLine(
+                type: ConsoleLineType.stderr,
+                text: line,
+                cwdSnapshot: powerShellPrompt,
+              ),
+            );
+          });
 
-      unawaited(p.exitCode.then((code) async {
-        _appendLine(
-          ConsoleLine(
-            type: ConsoleLineType.info,
-            text: 'PowerShell session exited (code $code)',
-            cwdSnapshot: 'pwsh',
-          ),
-        );
-        await _stopPwshSession();
-        if (_mode == ConsoleMode.pwsh) {
-          _mode = ConsoleMode.embedded;
-          notifyListeners();
-        }
-      }));
+      unawaited(
+        p.exitCode.then((code) async {
+          _appendLine(
+            ConsoleLine(
+              type: ConsoleLineType.info,
+              text: 'PowerShell session exited (code $code)',
+              cwdSnapshot: powerShellPrompt,
+            ),
+          );
+          await _stopPwshSession();
+          if (_mode == ConsoleMode.pwsh) {
+            _mode = ConsoleMode.embedded;
+            notifyListeners();
+          }
+        }),
+      );
     } catch (e) {
       _appendLine(
         ConsoleLine(
           type: ConsoleLineType.stderr,
           text: 'Failed to start PowerShell session: $e',
-          cwdSnapshot: 'pwsh',
+          cwdSnapshot: powerShellPrompt,
         ),
       );
       _mode = ConsoleMode.embedded;
@@ -542,7 +508,7 @@ class ConsoleController extends ChangeNotifier {
       ConsoleLine(
         type: ConsoleLineType.command,
         text: cmd,
-        cwdSnapshot: 'pwsh',
+        cwdSnapshot: powerShellPrompt,
       ),
     );
 
@@ -558,9 +524,79 @@ class ConsoleController extends ChangeNotifier {
         ConsoleLine(
           type: ConsoleLineType.stderr,
           text: 'Failed to write to PowerShell stdin: $e',
-          cwdSnapshot: 'pwsh',
+          cwdSnapshot: powerShellPrompt,
         ),
       );
     }
+  }
+
+  Future<String> _resolvePowerShellExecutable() async {
+    if (!Platform.isWindows) return 'pwsh';
+
+    for (final exe in const <String>['pwsh.exe', 'powershell.exe']) {
+      try {
+        final result = await Process.run(exe, const <String>[
+          '-NoLogo',
+          '-NoProfile',
+          '-Command',
+          r'$PSVersionTable.PSVersion.ToString()',
+        ], runInShell: true);
+        if (result.exitCode == 0) return exe;
+      } catch (_) {
+        // Try next executable.
+      }
+    }
+
+    return 'powershell.exe';
+  }
+
+  Future<void> _loadConsoleFontFamily() async {
+    if (!Platform.isWindows) return;
+
+    const keys = <String>[
+      r'HKCU\Console\%SystemRoot%_System32_WindowsPowerShell_v1.0_powershell.exe',
+      r'HKCU\Console\powershell.exe',
+      r'HKCU\Console\pwsh.exe',
+      r'HKCU\Console',
+    ];
+
+    for (final key in keys) {
+      final faceName = await _readConsoleFaceName(key);
+      if (faceName == null || faceName.isEmpty) continue;
+
+      if (_consoleFontFamily != faceName) {
+        _consoleFontFamily = faceName;
+        notifyListeners();
+      }
+      return;
+    }
+  }
+
+  Future<String?> _readConsoleFaceName(String registryKey) async {
+    try {
+      final result = await Process.run('reg.exe', <String>[
+        'query',
+        registryKey,
+        '/v',
+        'FaceName',
+      ], runInShell: false);
+      if (result.exitCode != 0) return null;
+
+      final output = '${result.stdout}\n${result.stderr}';
+      for (final line in const LineSplitter().convert(output)) {
+        final match = RegExp(
+          r'^\s*FaceName\s+REG_\w+\s+(.+?)\s*$',
+          caseSensitive: false,
+        ).firstMatch(line);
+        if (match == null) continue;
+
+        final value = match.group(1)?.trim();
+        if (value != null && value.isNotEmpty) return value;
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
   }
 }

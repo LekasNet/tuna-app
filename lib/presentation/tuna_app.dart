@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../app/uikit/app_colors.dart';
 import '../di/console/console_controller.dart';
 import '../di/docker/docker_controller.dart';
@@ -49,8 +51,16 @@ class TunaApp extends StatelessWidget {
       animation: settingsController,
       builder: (_, __) {
         return MaterialApp(
-          title: 'Tuna',
+          title: AppLocalizations(const Locale('en')).t('app.title'),
           debugShowCheckedModeBanner: false,
+          locale: AppLocalizations.localeFor(settingsController.language),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: AppColors.lightTheme,
           darkTheme: AppColors.darkTheme,
           themeMode: _convertThemeMode(settingsController.themeMode),

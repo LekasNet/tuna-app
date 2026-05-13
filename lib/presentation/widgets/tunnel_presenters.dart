@@ -10,6 +10,12 @@ String tunnelTypeLabel(TunnelType type) {
       return 'HTTP';
     case TunnelType.tcp:
       return 'TCP';
+    case TunnelType.postgres:
+      return 'PostgreSQL';
+    case TunnelType.redis:
+      return 'Redis';
+    case TunnelType.ssh:
+      return 'SSH';
   }
 }
 

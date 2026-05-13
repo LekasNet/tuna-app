@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'core/cli/cli_controller.dart';
+import 'core/storage/shared_preferences_migration.dart';
 import 'core/updates/app_update_service.dart';
 import 'di/console/console_controller.dart';
 import 'di/docker/docker_controller.dart';
@@ -19,6 +20,8 @@ import 'presentation/tuna_app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await migrateLegacySharedPreferences();
 
   final settingsService = SettingsService();
 
@@ -99,7 +102,7 @@ void main() async {
     appWindow.minSize = initialSize;
     appWindow.size = initialSize;
     appWindow.alignment = Alignment.center;
-    appWindow.title = 'Tuna';
+    appWindow.title = 'tuna_unofficial_client';
     appWindow.show();
   });
 }

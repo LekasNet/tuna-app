@@ -1,19 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-import '../../di/settings/settings_controller.dart';
-import '../../di/settings/settings_service.dart';
-import '../../utils/helpers.dart'; // launchWeb
+import 'package:tuna/app/l10n/app_localizations.dart';
+import '../app/uikit/widgets/simple_select_field.dart';
+import '../di/settings/settings_controller.dart';
+import '../di/settings/settings_service.dart';
+import '../utils/helpers.dart'; // launchWeb
 
 class SettingsScreen extends StatefulWidget {
   final SettingsController controller;
 
-  const SettingsScreen({
-    super.key,
-    required this.controller,
-  });
+  const SettingsScreen({super.key, required this.controller});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -52,6 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, _) {
         final c = widget.controller;
         final theme = Theme.of(context);
+        final l10n = context.l10n;
 
         final tokenSaved = c.token.isNotEmpty;
         final apiKeySaved = (c.apiKey ?? '').isNotEmpty;
@@ -64,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               // ---------------- ТЕМА ----------------
               Text(
-                'Тема',
+                l10n.t('settings.theme'),
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -72,32 +73,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 spacing: 8,
                 children: [
                   _ThemeChip(
-                    label: 'Системная',
+                    label: l10n.t('settings.system'),
                     value: AppThemeMode.system,
                     groupValue: c.themeMode,
-                    onSelected: (v) =>
-                        widget.controller.updateThemeMode(v),
+                    onSelected: (v) => widget.controller.updateThemeMode(v),
                   ),
                   _ThemeChip(
-                    label: 'Светлая',
+                    label: l10n.t('settings.light'),
                     value: AppThemeMode.light,
                     groupValue: c.themeMode,
-                    onSelected: (v) =>
-                        widget.controller.updateThemeMode(v),
+                    onSelected: (v) => widget.controller.updateThemeMode(v),
                   ),
                   _ThemeChip(
-                    label: 'Тёмная',
+                    label: l10n.t('settings.dark'),
                     value: AppThemeMode.dark,
                     groupValue: c.themeMode,
-                    onSelected: (v) =>
-                        widget.controller.updateThemeMode(v),
+                    onSelected: (v) => widget.controller.updateThemeMode(v),
                   ),
                 ],
               ),
 
+              const SizedBox(height: 18),
+              SizedBox(
+                width: 260,
+                child: SimpleSelectField<AppLanguage>(
+                  labelText: l10n.t('settings.language'),
+                  value: c.language,
+                  options: AppLanguage.values
+                      .map(
+                        (language) => SimpleSelectOption(
+                          value: language,
+                          label: l10n.languageName(language),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: widget.controller.updateLanguage,
+                ),
+              ),
+
               const SizedBox(height: 24),
               Text(
-                'Авторизация',
+                l10n.t('settings.authorization'),
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 12),
@@ -121,6 +137,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (widget.controller.accountName != null ||
                   widget.controller.subscriptionExpiry != null)
                 _buildAccountInfo(context),
+
+              const SizedBox(height: 24),
+              _buildUnofficialDisclaimer(context),
             ],
           ),
         );
@@ -141,24 +160,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Color textColor;
 
     if (!tokenSaved) {
-      statusText = 'Токен не задан';
+      statusText = context.l10n.t('settings.tokenMissing');
       bgColor = Colors.grey.withOpacity(0.08);
       textColor = theme.colorScheme.onSurface.withOpacity(0.6);
     } else {
       switch (c.tokenStatus) {
         case TokenStatus.savedOk:
-          statusText = 'Токен сохранён';
+          statusText = context.l10n.t('settings.tokenSaved');
           bgColor = Colors.green.withOpacity(0.12);
           textColor = Colors.green.shade700;
           break;
         case TokenStatus.savedButFailedCheck:
-          statusText = 'Токен сохранён, но проверить его не удалось';
+          statusText = context.l10n.t('settings.tokenSavedCheckFailed');
           bgColor = Colors.amber.withOpacity(0.16);
           textColor = Colors.amber.shade800;
           break;
         case TokenStatus.none:
-        default:
-          statusText = 'Токен сохранён';
+          statusText = context.l10n.t('settings.tokenSaved');
           bgColor = Colors.green.withOpacity(0.12);
           textColor = Colors.green.shade700;
           break;
@@ -169,9 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.5),
-        ),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,12 +196,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             children: [
               Text(
-                'Токен',
+                context.l10n.t('settings.token'),
                 style: theme.textTheme.titleMedium,
               ),
               const Spacer(),
               IconButton(
-                tooltip: 'Редактировать токен',
+                tooltip: context.l10n.t('settings.editToken'),
                 icon: const Icon(Icons.edit, size: 18),
                 onPressed: () {
                   setState(() {
@@ -201,17 +217,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (!_editingToken)
             Container(
               width: double.infinity,
-              padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 statusText,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: textColor,
-                ),
+                style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
               ),
             )
           else
@@ -221,15 +234,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSecretFieldRow(
                   context: context,
                   controller: _tokenController,
-                  labelText: 'Токен',
-                  hintText: 'Вставь токен',
+                  labelText: context.l10n.t('settings.token'),
+                  hintText: context.l10n.t('settings.pasteToken'),
                   onClear: () {
                     _tokenController.clear();
                     setState(() {});
                   },
                   onPaste: () async {
-                    final data =
-                    await Clipboard.getData('text/plain');
+                    final data = await Clipboard.getData('text/plain');
                     final text = data?.text ?? '';
                     _tokenController
                       ..text = text
@@ -245,24 +257,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     FilledButton(
                       onPressed: () async {
                         final value = _tokenController.text.trim();
-                        await widget.controller
-                            .updateToken(value.isEmpty ? null : value);
+                        await widget.controller.updateToken(
+                          value.isEmpty ? null : value,
+                        );
                         setState(() {
                           _editingToken = false;
                         });
                       },
-                      child: const Text('Сохранить'),
+                      child: Text(context.l10n.t('settings.save')),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () {
                         setState(() {
                           _editingToken = false;
-                          _tokenController.text =
-                              widget.controller.token;
+                          _tokenController.text = widget.controller.token;
                         });
                       },
-                      child: const Text('Отмена'),
+                      child: Text(context.l10n.t('settings.cancel')),
                     ),
                   ],
                 ),
@@ -273,7 +285,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GestureDetector(
             onTap: () => launchWeb('https://my.tuna.am/token'),
             child: Text(
-              'Где взять токен: https://my.tuna.am/token',
+              context.l10n.t('settings.tokenHelp'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.primary,
                 decoration: TextDecoration.underline,
@@ -296,28 +308,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.5),
-        ),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(
-                'API key',
-                style: theme.textTheme.titleMedium,
-              ),
+              Text('API key', style: theme.textTheme.titleMedium),
               const Spacer(),
               IconButton(
-                tooltip: 'Редактировать API key',
+                tooltip: context.l10n.t('settings.editApiKey'),
                 icon: const Icon(Icons.edit, size: 18),
                 onPressed: () {
                   setState(() {
                     _editingApiKey = true;
-                    _apiKeyController.text =
-                        widget.controller.apiKey ?? '';
+                    _apiKeyController.text = widget.controller.apiKey ?? '';
                   });
                 },
               ),
@@ -327,8 +333,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (!_editingApiKey)
             Container(
               width: double.infinity,
-              padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: apiKeySaved
                     ? Colors.green.withOpacity(0.12)
@@ -337,8 +342,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Text(
                 apiKeySaved
-                    ? 'API key сохранён'
-                    : 'API key не задан',
+                    ? context.l10n.t('settings.apiKeySaved')
+                    : context.l10n.t('settings.apiKeyMissing'),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: apiKeySaved
                       ? Colors.green.shade700
@@ -354,14 +359,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   controller: _apiKeyController,
                   labelText: 'API key',
-                  hintText: 'Вставь API key',
+                  hintText: context.l10n.t('settings.pasteApiKey'),
                   onClear: () {
                     _apiKeyController.clear();
                     setState(() {});
                   },
                   onPaste: () async {
-                    final data =
-                    await Clipboard.getData('text/plain');
+                    final data = await Clipboard.getData('text/plain');
                     final text = data?.text ?? '';
                     _apiKeyController
                       ..text = text
@@ -377,13 +381,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     FilledButton(
                       onPressed: () async {
                         final value = _apiKeyController.text.trim();
-                        await widget.controller
-                            .updateApiKey(value.isEmpty ? null : value);
+                        await widget.controller.updateApiKey(
+                          value.isEmpty ? null : value,
+                        );
                         setState(() {
                           _editingApiKey = false;
                         });
                       },
-                      child: const Text('Сохранить'),
+                      child: Text(context.l10n.t('settings.save')),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
@@ -394,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               widget.controller.apiKey ?? '';
                         });
                       },
-                      child: const Text('Отмена'),
+                      child: Text(context.l10n.t('settings.cancel')),
                     ),
                   ],
                 ),
@@ -404,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GestureDetector(
             onTap: () => launchWeb('https://my.tuna.am/api_keys'),
             child: Text(
-              'Управление API ключами: https://my.tuna.am/api_keys',
+              context.l10n.t('settings.apiKeyHelp'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.primary,
                 decoration: TextDecoration.underline,
@@ -425,14 +430,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     String hintByPlatform() {
       if (Platform.isWindows) {
-        return 'Пример: C:\\\\Users\\\\<имя>\\\\AppData\\\\Local\\\\Microsoft\\\\WinGet\\\\Packages\\\\...\\\\tuna.exe\n'
-            'Можно найти через команду "where tuna" или "where tuna.exe" в PowerShell.';
+        return context.l10n.t('settings.pathHintWindows');
       } else if (Platform.isMacOS) {
-        return 'Пример: /opt/homebrew/bin/tuna или /usr/local/bin/tuna\n'
-            'Можно найти через команду "which tuna" в терминале.';
+        return context.l10n.t('settings.pathHintMac');
       } else {
-        return 'Пример: /usr/local/bin/tuna или /usr/bin/tuna\n'
-            'Можно найти через команду "which tuna" в терминале.';
+        return context.l10n.t('settings.pathHintLinux');
       }
     }
 
@@ -442,9 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.5),
-        ),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,12 +452,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             children: [
               Text(
-                'Путь до tuna',
+                context.l10n.t('settings.tunaPath'),
                 style: theme.textTheme.titleMedium,
               ),
               const Spacer(),
               IconButton(
-                tooltip: 'Редактировать путь',
+                tooltip: context.l10n.t('settings.editPath'),
                 icon: const Icon(Icons.edit, size: 18),
                 onPressed: () {
                   setState(() {
@@ -472,8 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (!_editingTunaPath)
             Container(
               width: double.infinity,
-              padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: tunaPathSaved
                     ? Colors.green.withOpacity(0.12)
@@ -483,7 +482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 tunaPathSaved
                     ? currentPath!
-                    : 'Путь не задан, используется поиск в PATH',
+                    : context.l10n.t('settings.pathMissing'),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: tunaPathSaved
                       ? theme.colorScheme.onSurface
@@ -498,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _tunaPathController,
                   decoration: InputDecoration(
-                    labelText: 'Путь к tuna',
+                    labelText: context.l10n.t('settings.pathToTuna'),
                     hintText: Platform.isWindows
                         ? r'C:\path\to\tuna.exe'
                         : '/usr/local/bin/tuna',
@@ -506,30 +505,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          tooltip: 'Вставить',
+                          tooltip: context.l10n.t('settings.paste'),
                           icon: const Icon(Icons.paste),
                           onPressed: () async {
-                            final data = await Clipboard.getData(
-                                'text/plain');
+                            final data = await Clipboard.getData('text/plain');
                             final text = data?.text ?? '';
                             _tunaPathController
                               ..text = text
-                              ..selection =
-                              TextSelection.fromPosition(
+                              ..selection = TextSelection.fromPosition(
                                 TextPosition(offset: text.length),
                               );
                             setState(() {});
                           },
                         ),
                         IconButton(
-                          tooltip: 'Очистить',
+                          tooltip: context.l10n.t('settings.clear'),
                           icon: const Icon(Icons.close),
                           onPressed: _tunaPathController.text.isEmpty
                               ? null
                               : () {
-                            _tunaPathController.clear();
-                            setState(() {});
-                          },
+                                  _tunaPathController.clear();
+                                  setState(() {});
+                                },
                         ),
                       ],
                     ),
@@ -540,8 +537,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     FilledButton(
                       onPressed: () async {
-                        final value =
-                        _tunaPathController.text.trim();
+                        final value = _tunaPathController.text.trim();
                         await widget.controller.updateTunaPath(
                           value.isEmpty ? null : value,
                         );
@@ -549,7 +545,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _editingTunaPath = false;
                         });
                       },
-                      child: const Text('Сохранить'),
+                      child: Text(context.l10n.t('settings.save')),
                     ),
                     const SizedBox(width: 8),
                     TextButton(
@@ -560,7 +556,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               widget.controller.tunaPath ?? '';
                         });
                       },
-                      child: const Text('Отмена'),
+                      child: Text(context.l10n.t('settings.cancel')),
                     ),
                   ],
                 ),
@@ -569,9 +565,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           Text(
             hintByPlatform(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.hintColor,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
           ),
         ],
       ),
@@ -595,31 +589,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.dividerColor.withOpacity(0.5),
-        ),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Аккаунт',
+            context.l10n.t('settings.account'),
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           if (name != null)
             Text(
-              'Пользователь: $name',
+              context.l10n.format('settings.user', {'name': name}),
               style: theme.textTheme.bodyMedium,
             ),
           if (expiry != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Подписка до: $expiry',
+              context.l10n.format('settings.subscriptionUntil', {
+                'date': expiry,
+              }),
               style: theme.textTheme.bodyMedium,
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnofficialDisclaimer(BuildContext context) {
+    final theme = Theme.of(context);
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurface,
+      height: 1.35,
+    );
+    final linkStyle = textStyle?.copyWith(
+      color: Colors.lightBlueAccent.shade400,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: textStyle,
+            children: [
+              TextSpan(text: context.l10n.t('settings.disclaimerPrefix')),
+              TextSpan(
+                text: context.l10n.t('settings.disclaimerLink'),
+                style: linkStyle,
+                mouseCursor: SystemMouseCursors.click,
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () =>
+                      launchWeb(context.l10n.t('settings.officialSite')),
+              ),
+              TextSpan(text: context.l10n.t('settings.disclaimerSuffix')),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -650,12 +680,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              tooltip: 'Вставить',
+              tooltip: context.l10n.t('settings.paste'),
               icon: const Icon(Icons.paste),
               onPressed: () => onPaste(),
             ),
             IconButton(
-              tooltip: 'Очистить',
+              tooltip: context.l10n.t('settings.clear'),
               icon: const Icon(Icons.close),
               onPressed: controller.text.isEmpty ? null : onClear,
             ),

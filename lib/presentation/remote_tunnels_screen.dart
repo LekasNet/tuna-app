@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../core/api/tuna_api_service.dart';
 import '../di/settings/settings_controller.dart';
 import '../di/tunnels/remote_tunnels_controller.dart';
@@ -44,9 +45,9 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
     final id = tunnel.id;
     if (id == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Нельзя остановить туннель без ID.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.t('remote.noId'))));
       return;
     }
 
@@ -54,7 +55,7 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Остановить удалённый туннель'),
+          title: Text(context.l10n.t('remote.stopTitle')),
           content: Text(
             'Остановить туннель ${tunnel.publicUrl ?? tunnel.uid}? '
             'Это завершит удалённое соединение.',
@@ -62,11 +63,11 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Отмена'),
+              child: Text(context.l10n.t('common.cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Остановить'),
+              child: Text(context.l10n.t('common.stop')),
             ),
           ],
         );
@@ -86,8 +87,8 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
       SnackBar(
         content: Text(
           ok
-              ? 'Удалённый туннель остановлен.'
-              : 'Не удалось остановить удалённый туннель.',
+              ? context.l10n.t('remote.stopped')
+              : context.l10n.t('remote.stopFailed'),
         ),
       ),
     );
@@ -117,12 +118,12 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
               Row(
                 children: [
                   Text(
-                    'Удалённые туннели',
+                    context.l10n.t('remote.title'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const Spacer(),
                   IconButton(
-                    tooltip: 'Обновить',
+                    tooltip: context.l10n.t('common.refresh'),
                     onPressed: controller.loading ? null : _refresh,
                     icon: controller.loading
                         ? const SizedBox(
@@ -146,9 +147,7 @@ class _RemoteTunnelsScreenState extends State<RemoteTunnelsScreen> {
                 child: controller.loading && tunnels.isEmpty
                     ? const Center(child: CircularProgressIndicator())
                     : tunnels.isEmpty
-                    ? const Center(
-                        child: Text('Активных удалённых туннелей не найдено.'),
-                      )
+                    ? Center(child: Text(context.l10n.t('remote.empty')))
                     : ListView.separated(
                         itemCount: tunnels.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -223,12 +222,12 @@ class _SharedRemoteTunnelTile extends StatelessWidget {
       ),
       actions: [
         IconButton(
-          tooltip: 'Открыть URL',
+          tooltip: context.l10n.t('common.openUrl'),
           onPressed: onOpen,
           icon: const Icon(Icons.open_in_new),
         ),
         IconButton(
-          tooltip: 'Принудительно остановить',
+          tooltip: context.l10n.t('remote.forceStop'),
           onPressed: stopping ? null : onStop,
           icon: stopping
               ? const SizedBox(

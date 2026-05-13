@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../core/docker/docker_service.dart';
 import '../di/docker/docker_controller.dart';
 import 'widgets/log_console_panel.dart';
@@ -30,7 +31,7 @@ class _DockerScreenState extends State<DockerScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Остановить туннель в контейнере'),
+          title: Text(context.l10n.t('docker.stopTitle')),
           content: Text(
             'PID ${tunnel.pid} (${tunnel.type.toUpperCase()} ${tunnel.address}) '
             'будет остановлен внутри контейнера.',
@@ -38,11 +39,11 @@ class _DockerScreenState extends State<DockerScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Отмена'),
+              child: Text(context.l10n.t('common.cancel')),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Остановить'),
+              child: Text(context.l10n.t('common.stop')),
             ),
           ],
         );
@@ -107,12 +108,12 @@ class _ContainersListView extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Docker контейнеры',
+                context.l10n.t('docker.title'),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const Spacer(),
               IconButton(
-                tooltip: 'Обновить список',
+                tooltip: context.l10n.t('docker.refreshList'),
                 onPressed: controller.loadingContainers
                     ? null
                     : controller.refreshContainers,
@@ -138,9 +139,9 @@ class _ContainersListView extends StatelessWidget {
             child: controller.loadingContainers && containers.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : engineNotRunning
-                ? const Center(child: Text('Docker Engine не запущен.'))
+                ? Center(child: Text(context.l10n.t('docker.notRunning')))
                 : containers.isEmpty
-                ? const Center(child: Text('Контейнеры не найдены'))
+                ? Center(child: Text(context.l10n.t('docker.empty')))
                 : ListView.separated(
                     itemCount: containers.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -271,7 +272,7 @@ class _ContainerDetailsView extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                tooltip: 'Назад к контейнерам',
+                tooltip: context.l10n.t('docker.back'),
                 onPressed: onBack,
                 icon: const Icon(Icons.arrow_back),
               ),
@@ -283,7 +284,7 @@ class _ContainerDetailsView extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'Обновить контейнер',
+                tooltip: context.l10n.t('docker.refreshContainer'),
                 onPressed: loading
                     ? null
                     : () => controller.loadContainerDetails(
@@ -374,7 +375,7 @@ class _ContainerDetailsView extends StatelessWidget {
             runSpacing: 6,
             children: [
               ChoiceChip(
-                label: const Text('Лог контейнера'),
+                label: Text(context.l10n.t('docker.containerLog')),
                 selected: selectedPid == null,
                 onSelected: (_) =>
                     controller.selectLogSource(containerId, tunnelPid: null),
@@ -475,7 +476,7 @@ class _TunnelProcessTile extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'Остановить туннель',
+                tooltip: context.l10n.t('docker.stopTunnel'),
                 onPressed: stopping ? null : onStop,
                 icon: stopping
                     ? const SizedBox(

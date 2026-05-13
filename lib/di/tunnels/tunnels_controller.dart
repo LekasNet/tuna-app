@@ -464,6 +464,21 @@ class TunnelsController extends ChangeNotifier {
             localPort: tunnel.localPort,
           );
           break;
+        case TunnelType.postgres:
+          process = await _cli.startSimplePostgresTunnel(
+            localPort: tunnel.localPort,
+            localIp: tunnel.ip,
+          );
+          break;
+        case TunnelType.redis:
+          process = await _cli.startSimpleRedisTunnel(
+            localPort: tunnel.localPort,
+            localIp: tunnel.ip,
+          );
+          break;
+        case TunnelType.ssh:
+          process = await _cli.startSimpleSshTunnel();
+          break;
       }
 
       final id = tunnel.id;
@@ -720,7 +735,13 @@ class TunnelsController extends ChangeNotifier {
 
     for (final item in remote) {
       final protocol = item.protocol?.toLowerCase().trim() ?? '';
-      final type = protocol.contains('tcp') ? TunnelType.tcp : TunnelType.http;
+      final type = protocol.contains('postgres')
+          ? TunnelType.postgres
+          : protocol.contains('redis')
+          ? TunnelType.redis
+          : protocol.contains('tcp')
+          ? TunnelType.tcp
+          : TunnelType.http;
       final port = _extractLocalPort(item.forwardsTo);
       if (port == null) continue;
 
@@ -855,7 +876,7 @@ $items | ConvertTo-Json -Compress
     if (pid <= 0 || commandLine.isEmpty) return null;
 
     final match = RegExp(
-      r'(?:^|\s)tuna(?:\.exe)?\s+(http|tcp)\s+([^\s]+)',
+      r'(?:^|\s)tuna(?:\.exe)?\s+(http|tcp|postgres|redis)\s+([^\s]+)',
       caseSensitive: false,
     ).firstMatch(commandLine);
     if (match == null) return null;
@@ -864,7 +885,12 @@ $items | ConvertTo-Json -Compress
     final rawAddress = (match.group(2) ?? '').trim();
     if (rawAddress.isEmpty) return null;
 
-    final type = rawType == 'tcp' ? TunnelType.tcp : TunnelType.http;
+    final type = switch (rawType) {
+      'tcp' => TunnelType.tcp,
+      'postgres' => TunnelType.postgres,
+      'redis' => TunnelType.redis,
+      _ => TunnelType.http,
+    };
 
     int? port;
     if (rawAddress.contains(':')) {

@@ -1,14 +1,13 @@
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AppThemeMode {
-  system,
-  light,
-  dark,
-}
+enum AppThemeMode { system, light, dark }
+
+enum AppLanguage { system, ru, en }
 
 class SettingsService {
   static const _themeModeKey = 'theme_mode';
+  static const _languageKey = 'language';
   static const _tokenKey = 'token';
   static const _apiKeyKey = 'api_key';
   static const _tunaPathKey = 'tuna_path';
@@ -33,6 +32,24 @@ class SettingsService {
   Future<void> saveThemeMode(AppThemeMode mode) async {
     final prefs = await _instance;
     await prefs.setInt(_themeModeKey, mode.index);
+  }
+
+  // ---------------------------------------------------------------------------
+  // LANGUAGE
+  // ---------------------------------------------------------------------------
+
+  Future<AppLanguage> loadLanguage() async {
+    final prefs = await _instance;
+    final index = prefs.getInt(_languageKey);
+    if (index == null || index < 0 || index >= AppLanguage.values.length) {
+      return AppLanguage.system;
+    }
+    return AppLanguage.values[index];
+  }
+
+  Future<void> saveLanguage(AppLanguage language) async {
+    final prefs = await _instance;
+    await prefs.setInt(_languageKey, language.index);
   }
 
   // ---------------------------------------------------------------------------
@@ -99,11 +116,9 @@ class SettingsService {
 
     try {
       if (Platform.isWindows) {
-        final result = await Process.run(
-          'where',
-          ['tuna.exe'],
-          runInShell: true,
-        );
+        final result = await Process.run('where', [
+          'tuna.exe',
+        ], runInShell: true);
 
         if (result.exitCode == 0) {
           final found = (result.stdout as String)
