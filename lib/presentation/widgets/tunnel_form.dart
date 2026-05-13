@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../../app/uikit/widgets/simple_select_field.dart';
 import '../../core/cli/cli_commands.dart';
 
@@ -82,6 +83,10 @@ class TunnelFormValidator {
       );
     }
 
+    if (type == TunnelType.ssh) {
+      return const TunnelFormValidationResult(errorMessage: null, port: 0);
+    }
+
     if (parsedPort == null || parsedPort <= 0 || parsedPort > 65535) {
       return const TunnelFormValidationResult(
         errorMessage: 'Некорректный порт (1–65535)',
@@ -148,51 +153,61 @@ class _DialogTunnelFormFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final portEnabled = type != TunnelType.ssh;
+    final subdomainEnabled = type == TunnelType.http;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _TunnelTypeField(type: type, onTypeChanged: onTypeChanged),
+        const SizedBox(height: 12),
         TextField(
           controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Название',
-            hintText: 'Например, Local API',
+          decoration: InputDecoration(
+            labelText: context.l10n.t('tunnelForm.name'),
+            hintText: context.l10n.t('tunnelForm.nameHint'),
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
-          controller: portController,
-          decoration: const InputDecoration(
-            labelText: 'Локальный порт',
-            hintText: 'Например, 8080',
+        _DisabledFieldOpacity(
+          enabled: portEnabled,
+          child: TextField(
+            controller: portController,
+            enabled: portEnabled,
+            decoration: InputDecoration(
+              labelText: context.l10n.t('tunnelForm.localPort'),
+              hintText: portEnabled
+                  ? context.l10n.t('tunnelForm.localPortHint')
+                  : '',
+            ),
+            keyboardType: TextInputType.number,
           ),
-          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 12),
-        TextField(
-          controller: ipController,
-          decoration: const InputDecoration(
-            labelText: 'Локальный IP (опционально)',
-            hintText: 'Например, 127.0.0.1',
+        _DisabledFieldOpacity(
+          enabled: portEnabled,
+          child: TextField(
+            controller: ipController,
+            enabled: portEnabled,
+            decoration: InputDecoration(
+              labelText: context.l10n.t('tunnelForm.localIp'),
+              hintText: context.l10n.t('tunnelForm.localIpHint'),
+            ),
+            keyboardType: TextInputType.number,
           ),
-          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 12),
-        SimpleSelectField<TunnelType>(
-          value: type,
-          labelText: 'Тип тоннеля',
-          options: const [
-            SimpleSelectOption(value: TunnelType.http, label: 'HTTP'),
-            SimpleSelectOption(value: TunnelType.tcp, label: 'TCP'),
-          ],
-          onChanged: onTypeChanged,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: subdomainController,
-          enabled: type == TunnelType.http,
-          decoration: const InputDecoration(
-            labelText: 'Subdomain (опционально)',
-            hintText: 'Например, myapp',
+        _DisabledFieldOpacity(
+          enabled: subdomainEnabled,
+          child: TextField(
+            controller: subdomainController,
+            enabled: subdomainEnabled,
+            decoration: InputDecoration(
+              labelText: context.l10n.t('tunnelForm.subdomain'),
+              hintText: subdomainEnabled
+                  ? context.l10n.t('tunnelForm.subdomainHint')
+                  : '',
+            ),
           ),
         ),
       ],
@@ -219,23 +234,42 @@ class _PanelTunnelFormFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final portEnabled = type != TunnelType.ssh;
+    final subdomainEnabled = type == TunnelType.http;
+
     return Column(
       children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 220,
+            child: _TunnelTypeField(type: type, onTypeChanged: onTypeChanged),
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: 'Название'),
+                decoration: InputDecoration(
+                  labelText: context.l10n.t('tunnelForm.name'),
+                ),
               ),
             ),
             const SizedBox(width: 16),
             SizedBox(
               width: 140,
-              child: TextField(
-                controller: portController,
-                decoration: const InputDecoration(labelText: 'Порт'),
-                keyboardType: TextInputType.number,
+              child: _DisabledFieldOpacity(
+                enabled: portEnabled,
+                child: TextField(
+                  controller: portController,
+                  enabled: portEnabled,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.t('tunnelForm.localPort'),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
               ),
             ),
           ],
@@ -244,38 +278,71 @@ class _PanelTunnelFormFields extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: ipController,
-                decoration: const InputDecoration(
-                  labelText: 'IP (опционально)',
+              child: _DisabledFieldOpacity(
+                enabled: portEnabled,
+                child: TextField(
+                  controller: ipController,
+                  enabled: portEnabled,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.t('tunnelForm.localIp'),
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 200,
-              child: SimpleSelectField<TunnelType>(
-                value: type,
-                labelText: 'Тип',
-                options: const [
-                  SimpleSelectOption(value: TunnelType.http, label: 'HTTP'),
-                  SimpleSelectOption(value: TunnelType.tcp, label: 'TCP'),
-                ],
-                onChanged: onTypeChanged,
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        TextField(
-          controller: subdomainController,
-          enabled: type == TunnelType.http,
-          decoration: const InputDecoration(
-            labelText: 'Subdomain (опционально)',
+        _DisabledFieldOpacity(
+          enabled: subdomainEnabled,
+          child: TextField(
+            controller: subdomainController,
+            enabled: subdomainEnabled,
+            decoration: InputDecoration(
+              labelText: context.l10n.t('tunnelForm.subdomain'),
+            ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TunnelTypeField extends StatelessWidget {
+  final TunnelType type;
+  final ValueChanged<TunnelType> onTypeChanged;
+
+  const _TunnelTypeField({required this.type, required this.onTypeChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SimpleSelectField<TunnelType>(
+      value: type,
+      labelText: context.l10n.t('tunnelForm.type'),
+      options: const [
+        SimpleSelectOption(value: TunnelType.http, label: 'HTTP'),
+        SimpleSelectOption(value: TunnelType.tcp, label: 'TCP'),
+        SimpleSelectOption(value: TunnelType.postgres, label: 'PostgreSQL'),
+        SimpleSelectOption(value: TunnelType.redis, label: 'Redis'),
+        SimpleSelectOption(value: TunnelType.ssh, label: 'SSH'),
+      ],
+      onChanged: onTypeChanged,
+    );
+  }
+}
+
+class _DisabledFieldOpacity extends StatelessWidget {
+  final bool enabled;
+  final Widget child;
+
+  const _DisabledFieldOpacity({required this.enabled, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 140),
+      opacity: enabled ? 1 : 0.45,
+      child: child,
     );
   }
 }

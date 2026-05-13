@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tuna/utils/helpers.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../../app/uikit/widgets/simple_select_field.dart';
 import '../../core/cli/cli_commands.dart';
 import '../../core/tunnels/tunnel_models.dart';
@@ -12,6 +13,28 @@ import 'widgets/tunnel_form.dart';
 import 'widgets/tunnel_presenters.dart';
 
 import 'package:flutter/services.dart';
+
+String _defaultPortForTunnelType(TunnelType type) {
+  switch (type) {
+    case TunnelType.postgres:
+      return '5432';
+    case TunnelType.redis:
+      return '6379';
+    case TunnelType.ssh:
+    case TunnelType.http:
+    case TunnelType.tcp:
+      return '';
+  }
+}
+
+String _displayTargetForTunnel(SavedTunnel tunnel) {
+  if (tunnel.type == TunnelType.ssh) {
+    return 'SSH';
+  }
+  return tunnel.ip != null && tunnel.ip!.isNotEmpty
+      ? '${tunnel.ip}:${tunnel.localPort}'
+      : 'порт ${tunnel.localPort}';
+}
 
 class TunnelsScreen extends StatelessWidget {
   final TunnelsController controller;
@@ -47,13 +70,13 @@ class TunnelsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'Туннели',
+                      context.l10n.t('tunnels.title'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add),
-                      tooltip: 'Добавить туннель',
+                      tooltip: context.l10n.t('tunnels.add'),
                       onPressed: () => _showAddTunnelDialog(context),
                     ),
                   ],
@@ -63,7 +86,7 @@ class TunnelsScreen extends StatelessWidget {
                   child: tunnels.isEmpty
                       ? Center(
                           child: Text(
-                            'Туннелей пока нет.\nНажми "+" чтобы добавить.',
+                            context.l10n.t('tunnels.empty'),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
@@ -142,7 +165,7 @@ class TunnelsScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('Новый туннель'),
+              title: Text(context.l10n.t('tunnels.new')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -157,6 +180,11 @@ class TunnelsScreen extends StatelessWidget {
                       onTypeChanged: (value) {
                         setState(() {
                           selectedType = value;
+                          final defaultPort = _defaultPortForTunnelType(value);
+                          if (value == TunnelType.ssh ||
+                              portController.text.trim().isEmpty) {
+                            portController.text = defaultPort;
+                          }
                           errorMessage = null;
                         });
                       },
@@ -179,7 +207,7 @@ class TunnelsScreen extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Отмена'),
+                  child: Text(context.l10n.t('common.cancel')),
                 ),
                 FilledButton(
                   onPressed: () async {
@@ -204,14 +232,19 @@ class TunnelsScreen extends StatelessWidget {
                       name: name,
                       localPort: validation.port!,
                       type: selectedType,
-                      ip: ip.isEmpty ? null : ip,
-                      subdomain: sub.isEmpty ? null : sub,
+                      ip: selectedType == TunnelType.ssh || ip.isEmpty
+                          ? null
+                          : ip,
+                      subdomain:
+                          selectedType == TunnelType.http && sub.isNotEmpty
+                          ? sub
+                          : null,
                     );
 
                     if (!navigator.mounted) return;
                     navigator.pop();
                   },
-                  child: const Text('Сохранить'),
+                  child: Text(context.l10n.t('common.save')),
                 ),
               ],
             );
@@ -249,9 +282,7 @@ class _SharedTunnelListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final address = tunnel.ip != null && tunnel.ip!.isNotEmpty
-        ? '${tunnel.ip}:${tunnel.localPort}'
-        : 'порт ${tunnel.localPort}';
+    final address = _displayTargetForTunnel(tunnel);
     final statusText = tunnelStatusLabel(tunnel.status);
     final subdomainText =
         tunnel.subdomain != null && tunnel.subdomain!.isNotEmpty
@@ -269,12 +300,14 @@ class _SharedTunnelListItem extends StatelessWidget {
       actions: [
         IconButton(
           icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-          tooltip: isRunning ? 'Остановить' : 'Запустить',
+          tooltip: isRunning
+              ? context.l10n.t('common.stop')
+              : context.l10n.t('common.start'),
           onPressed: isRunning ? onStop : onStart,
         ),
         IconButton(
           icon: const Icon(Icons.delete_outline),
-          tooltip: 'Удалить',
+          tooltip: context.l10n.t('common.delete'),
           onPressed: onDelete,
         ),
       ],
@@ -308,6 +341,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
   final ScrollController _logScrollController = ScrollController();
 
   bool _editing = false;
+  bool _sshInstructionsVisible = false;
   _LogFilter _logFilter = _LogFilter.all;
 
   TunnelsController get controller => widget.controller;
@@ -333,11 +367,14 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
 
   void _applyTunnelToForm(SavedTunnel t) {
     _nameController.text = t.name;
-    _portController.text = t.localPort.toString();
+    _portController.text = t.type == TunnelType.ssh
+        ? ''
+        : t.localPort.toString();
     _ipController.text = t.ip ?? '';
     _subController.text = t.subdomain ?? '';
     _type = t.type;
     _editing = false;
+    _sshInstructionsVisible = false;
   }
 
   @override
@@ -362,7 +399,9 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     if (!validation.isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(validation.errorMessage ?? 'Проверь данные формы'),
+          content: Text(
+            validation.errorMessage ?? context.l10n.t('tunnels.checkForm'),
+          ),
         ),
       );
       return;
@@ -375,8 +414,8 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     final updated = tunnel.copyWith(
       name: name,
       localPort: validation.port!,
-      ip: ip.isEmpty ? null : ip,
-      subdomain: sub.isEmpty ? null : sub,
+      ip: _type == TunnelType.ssh || ip.isEmpty ? null : ip,
+      subdomain: _type == TunnelType.http && sub.isNotEmpty ? sub : null,
       type: _type,
     );
 
@@ -389,7 +428,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Туннель сохранён')));
+    ).showSnackBar(SnackBar(content: Text(context.l10n.t('tunnels.saved'))));
   }
 
   void _cancelEdit() {
@@ -406,11 +445,15 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     if (path == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Логи отсутствуют')));
+      ).showSnackBar(SnackBar(content: Text(context.l10n.t('tunnels.noLogs'))));
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Логи сохранены в файл:\n$path')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.format('tunnels.logsSaved', {'path': path}),
+          ),
+        ),
+      );
     }
   }
 
@@ -516,11 +559,10 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
   // ------------ ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ INFO-ПАНЕЛИ И СТАТУСОВ ------------
 
   Widget _buildReadOnlyInfo(BuildContext context) {
-    final address = tunnel.ip != null && tunnel.ip!.isNotEmpty
-        ? '${tunnel.ip}:${tunnel.localPort}'
-        : 'порт ${tunnel.localPort}';
+    final address = _displayTargetForTunnel(tunnel);
 
-    final typeLabel = tunnel.type == TunnelType.http ? 'HTTP' : 'TCP';
+    final typeLabel = tunnelTypeLabel(tunnel.type);
+    final sshInstructions = controller.sshInstructionsFor(tunnel.id);
 
     final forwarding = controller.forwardingFor(tunnel.id);
     final webInterfaceUrl = controller.webInterfaceFor(tunnel.id);
@@ -534,9 +576,13 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
       children: [
         _infoRow('Название', tunnel.name),
         _infoRow('Тип', typeLabel),
-        _infoRow('Адрес', address),
+        if (tunnel.type != TunnelType.ssh) _infoRow('Адрес', address),
         if (tunnel.subdomain != null && tunnel.subdomain!.isNotEmpty)
           _infoRow('Subdomain', tunnel.subdomain!),
+        if (tunnel.type == TunnelType.ssh && sshInstructions.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          _buildSshInstructions(context, sshInstructions),
+        ],
 
         // URL:
         if (forwarding != null) ...[
@@ -567,14 +613,14 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
                   ),
                 ),
                 _HoverCopyIcon(
-                  tooltip: 'Скопировать URL',
+                  tooltip: context.l10n.t('tunnels.copyUrl'),
                   onTap: () {
                     Clipboard.setData(
                       ClipboardData(text: forwarding.publicUrl),
                     );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Адрес скопирован'),
+                      SnackBar(
+                        content: Text(context.l10n.t('common.copyAddress')),
                         duration: Duration(seconds: 1),
                       ),
                     );
@@ -614,12 +660,12 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
                   ),
                 ),
                 _HoverCopyIcon(
-                  tooltip: 'Скопировать Web UI',
+                  tooltip: context.l10n.t('tunnels.copyWebUi'),
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: webInterfaceUrl));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Адрес скопирован'),
+                      SnackBar(
+                        content: Text(context.l10n.t('common.copyAddress')),
                         duration: Duration(seconds: 1),
                       ),
                     );
@@ -633,7 +679,110 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     );
   }
 
+  Widget _buildSshInstructions(
+    BuildContext context,
+    List<SshConnectionInstruction> instructions,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text(
+                  'SSH',
+                  style: TextStyle(color: Colors.grey.shade500),
+                ),
+              ),
+              const Expanded(
+                child: Text(
+                  'Connection instructions',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                tooltip: _sshInstructionsVisible ? 'Скрыть' : 'Показать',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  _sshInstructionsVisible
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                  size: 18,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _sshInstructionsVisible = !_sshInstructionsVisible;
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final instruction in instructions)
+            _buildSshInstructionRow(context, instruction),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSshInstructionRow(
+    BuildContext context,
+    SshConnectionInstruction instruction,
+  ) {
+    final shownValue = _sshInstructionsVisible
+        ? instruction.value
+        : _maskSecret(instruction.value);
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 100, bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              instruction.label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey.shade500),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              shownValue,
+              maxLines: 1,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: Color(0xFF3498DB),
+              ),
+            ),
+          ),
+          _HoverCopyIcon(
+            tooltip: 'Скопировать',
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: instruction.value));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.t('common.copyAddress')),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _maskSecret(String value) {
+    final length = value.length.clamp(12, 32).toInt();
+    return List.filled(length, '•').join();
+  }
+
   Widget _infoRow(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
@@ -656,7 +805,15 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
       subdomainController: _subController,
       type: _type,
       layout: TunnelFormLayout.panel,
-      onTypeChanged: (value) => setState(() => _type = value),
+      onTypeChanged: (value) {
+        setState(() {
+          _type = value;
+          final defaultPort = _defaultPortForTunnelType(value);
+          if (value == TunnelType.ssh || _portController.text.trim().isEmpty) {
+            _portController.text = defaultPort;
+          }
+        });
+      },
     );
   }
 

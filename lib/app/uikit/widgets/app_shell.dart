@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/material.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import 'package:tuna/di/settings/settings_controller.dart';
 import 'package:tuna/di/tabs/tabs_controller.dart';
 import 'package:tuna/di/docker/docker_controller.dart';
@@ -184,6 +185,29 @@ class _LeftSideMenu extends StatelessWidget {
         ? AppColors.sidebarBackgroundDark
         : AppColors.sidebarBackgroundLight;
     final titleColor = theme.colorScheme.onSurface;
+    final brandTitleStyle = TextStyle(
+      fontSize: 28,
+      fontFamily: 'JetBrains Mono',
+      fontWeight: FontWeight.w700,
+      height: 1,
+      color: titleColor,
+    );
+    final brandSubtitleStyle = brandTitleStyle.copyWith(
+      fontSize: 15,
+      color: titleColor.withValues(alpha: 0.45),
+    );
+    final brandTitleWidth = (TextPainter(
+      text: TextSpan(text: 'tuna', style: brandTitleStyle),
+      textDirection: TextDirection.ltr,
+    )..layout()).width;
+    final brandSubtitleWidth = (TextPainter(
+      text: TextSpan(text: 'unnoficial', style: brandSubtitleStyle),
+      textDirection: TextDirection.ltr,
+    )..layout()).width;
+    final fittedBrandSubtitleStyle = brandSubtitleStyle.copyWith(
+      fontSize:
+          brandSubtitleStyle.fontSize! * brandTitleWidth / brandSubtitleWidth,
+    );
 
     return SizedBox(
       width: 220,
@@ -205,18 +229,18 @@ class _LeftSideMenu extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      height: 48,
+                      height: 58,
                       child: MoveWindow(child: const SizedBox.expand()),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
                     _TabButton(
-                      label: 'Обзор',
+                      label: context.l10n.t('nav.dashboard'),
                       icon: Icons.dashboard_outlined,
                       selected: tabsController.current == AppTab.dashboard,
                       onTap: () => tabsController.selectTab(AppTab.dashboard),
                     ),
                     _TabButton(
-                      label: 'Туннели',
+                      label: context.l10n.t('nav.tunnels'),
                       icon: Icons.device_hub_outlined,
                       selected: tabsController.current == AppTab.tunnels,
                       onTap: () => tabsController.selectTab(AppTab.tunnels),
@@ -228,7 +252,7 @@ class _LeftSideMenu extends StatelessWidget {
                       onTap: () => tabsController.selectTab(AppTab.docker),
                     ),
                     _TabButton(
-                      label: 'Удалённые',
+                      label: context.l10n.t('nav.remote'),
                       icon: Icons.cloud_outlined,
                       selected: tabsController.current == AppTab.remoteTunnels,
                       onTap: () =>
@@ -273,20 +297,26 @@ class _LeftSideMenu extends StatelessWidget {
                 left: 0,
                 right: 0,
                 top: 0,
-                height: 48,
+                height: 58,
                 child: MoveWindow(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                     child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'tuna',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontFamily: 'JetBrains Mono',
-                          fontWeight: FontWeight.w700,
-                          color: titleColor,
-                        ),
+                      alignment: Alignment.topLeft,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('tuna', style: brandTitleStyle),
+                          Transform.translate(
+                            offset: const Offset(0, -1),
+                            child: Text(
+                              'unnoficial',
+                              style: fittedBrandSubtitleStyle,
+                              softWrap: false,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -373,7 +403,7 @@ class _NotificationsPanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           child: Text(
-            'Уведомления',
+            context.l10n.t('notifications.title'),
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurface,
@@ -384,7 +414,7 @@ class _NotificationsPanel extends StatelessWidget {
           child: notifications.isEmpty
               ? Center(
                   child: Text(
-                    'Нет уведомлений',
+                    context.l10n.t('notifications.empty'),
                     style: TextStyle(color: mutedColor),
                   ),
                 )
@@ -472,9 +502,7 @@ class _NotificationTileState extends State<_NotificationTile> {
           );
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Не удалось выполнить действие уведомления'),
-        ),
+        SnackBar(content: Text(context.l10n.t('notifications.actionFailed'))),
       );
     }
     return success;
@@ -585,7 +613,10 @@ class _NotificationTileState extends State<_NotificationTile> {
                 duration: _actionsAnimationDuration,
                 curve: Curves.easeOutCubic,
                 opacity: visible ? 1 : 0,
-                child: actionButton(text: 'На сайт', onPressed: _runSiteAction),
+                child: actionButton(
+                  text: context.l10n.t('notifications.site'),
+                  onPressed: _runSiteAction,
+                ),
               ),
             ),
             const Spacer(),
@@ -598,7 +629,7 @@ class _NotificationTileState extends State<_NotificationTile> {
                 curve: Curves.easeOutCubic,
                 opacity: visible ? 1 : 0,
                 child: actionButton(
-                  text: 'Обновить',
+                  text: context.l10n.t('notifications.update'),
                   onPressed: _runUpgradeCommand,
                 ),
               ),
@@ -740,8 +771,12 @@ class _AccountSidebarTile extends StatelessWidget {
 
   const _AccountSidebarTile({required this.account, required this.onTap});
 
-  String _formatDate(DateTime? dt) {
-    if (dt == null) return 'Дата не указана';
+  String _formatDate(BuildContext context, DateTime? dt) {
+    if (dt == null) {
+      return AppLocalizations.of(
+        context,
+      ).t('notifications.subscriptionDateMissing');
+    }
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final y = dt.year.toString();
@@ -755,7 +790,9 @@ class _AccountSidebarTile extends StatelessWidget {
 
     final primaryText = cs.onSurface;
     final secondaryText = cs.onSurface.withOpacity(0.6);
-    final subtitle = 'Подписка до ${_formatDate(account.paidTill)}';
+    final subtitle = context.l10n.format('notifications.subscriptionUntil', {
+      'date': _formatDate(context, account.paidTill),
+    });
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -812,7 +849,7 @@ class _BottomActionRow extends StatelessWidget {
       children: [
         _BottomIconButton(
           icon: Icons.settings_outlined,
-          tooltip: 'Настройки',
+          tooltip: context.l10n.t('nav.settings'),
           tab: AppTab.settings,
           tabsController: tabsController,
         ),
@@ -821,7 +858,7 @@ class _BottomActionRow extends StatelessWidget {
         ),
         _BottomIconButton(
           icon: Icons.terminal_outlined,
-          tooltip: 'Консоль',
+          tooltip: context.l10n.t('nav.console'),
           tab: AppTab.console,
           tabsController: tabsController,
         ),
@@ -915,7 +952,7 @@ class _NotificationToggleButtonState extends State<_NotificationToggleButton> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: Tooltip(
-        message: 'Уведомления',
+        message: context.l10n.t('notifications.title'),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: widget.notificationsController.togglePanel,

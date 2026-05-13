@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
+
 class TunnelDetailsHeader extends StatelessWidget {
   final String title;
   final String statusLabel;
@@ -35,7 +37,7 @@ class TunnelDetailsHeader extends StatelessWidget {
       children: [
         IconButton(
           icon: const Icon(Icons.arrow_back),
-          tooltip: 'К списку',
+          tooltip: context.l10n.t('tunnels.backToList'),
           onPressed: onBack,
         ),
         const SizedBox(width: 8),
@@ -49,7 +51,7 @@ class TunnelDetailsHeader extends StatelessWidget {
           Opacity(
             opacity: canOpenWebUI ? 1.0 : 0.4,
             child: IconButton(
-              tooltip: 'Web интерфейс',
+              tooltip: context.l10n.t('tunnels.webInterface'),
               onPressed: canOpenWebUI ? onOpenWebInterface : null,
               icon: const Icon(Icons.web, size: 20),
             ),
@@ -58,13 +60,15 @@ class TunnelDetailsHeader extends StatelessWidget {
         ],
         IconButton(
           icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-          tooltip: isRunning ? 'Остановить' : 'Запустить',
+          tooltip: isRunning
+              ? context.l10n.t('common.stop')
+              : context.l10n.t('common.start'),
           onPressed: isRunning ? onStop : onStart,
         ),
         const SizedBox(width: 8),
         IconButton(
           icon: const Icon(Icons.download_outlined),
-          tooltip: 'Экспорт логов',
+          tooltip: context.l10n.t('tunnels.exportLogs'),
           onPressed: onExportLogs,
         ),
       ],
@@ -115,12 +119,12 @@ class TunnelInfoSectionCard extends StatelessWidget {
                     children: [
                       TextButton(
                         onPressed: onCancel,
-                        child: const Text('Отмена'),
+                        child: Text(context.l10n.t('common.cancel')),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
                         onPressed: onSave,
-                        child: const Text('Сохранить'),
+                        child: Text(context.l10n.t('common.save')),
                       ),
                     ],
                   ),
@@ -134,7 +138,7 @@ class TunnelInfoSectionCard extends StatelessWidget {
               right: 0,
               child: IconButton(
                 icon: const Icon(Icons.edit, size: 18),
-                tooltip: 'Редактировать',
+                tooltip: context.l10n.t('tunnels.edit'),
                 onPressed: onEdit,
               ),
             ),
@@ -158,14 +162,17 @@ class TunnelLogsToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('Лог', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          context.l10n.t('tunnels.log'),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(width: 16),
         SizedBox(width: 130, child: filterField),
         const Spacer(),
         TextButton.icon(
           onPressed: onClearVisibleLogs,
           icon: const Icon(Icons.clear_all, size: 18),
-          label: const Text('Очистить видимый лог'),
+          label: Text(context.l10n.t('tunnels.clearVisibleLog')),
         ),
       ],
     );

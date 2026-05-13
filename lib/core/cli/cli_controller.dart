@@ -44,11 +44,35 @@ class CliController {
     return _startTunnelProcess(command);
   }
 
-  Future<Process> startSimpleTcpTunnel({
-    required int localPort,
-  }) async {
+  Future<Process> startSimpleTcpTunnel({required int localPort}) async {
     final command = CliCommands.simpleTcp(localPort: localPort);
     return _startTunnelProcess(command);
+  }
+
+  Future<Process> startSimplePostgresTunnel({
+    required int localPort,
+    String? localIp,
+  }) async {
+    final command = CliCommands.simplePostgres(
+      localPort: localPort,
+      localIp: localIp,
+    );
+    return _startTunnelProcess(command);
+  }
+
+  Future<Process> startSimpleRedisTunnel({
+    required int localPort,
+    String? localIp,
+  }) async {
+    final command = CliCommands.simpleRedis(
+      localPort: localPort,
+      localIp: localIp,
+    );
+    return _startTunnelProcess(command);
+  }
+
+  Future<Process> startSimpleSshTunnel() async {
+    return _startTunnelProcess(CliCommands.simpleSsh);
   }
 
   Future<Process> _startTunnelProcess(TunnelCommand command) async {
@@ -78,10 +102,6 @@ class CliController {
   // ---------------------------------------------------------------------------
 
   Future<ProcessResult> runSimple(List<String> args) {
-    return Process.run(
-      _executable,
-      args,
-      runInShell: false,
-    );
+    return Process.run(_executable, args, runInShell: false);
   }
 }

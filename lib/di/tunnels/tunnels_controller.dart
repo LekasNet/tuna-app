@@ -30,6 +30,13 @@ class ForwardingInfo {
   const ForwardingInfo({required this.publicUrl, required this.localTarget});
 }
 
+class SshConnectionInstruction {
+  final String label;
+  final String value;
+
+  const SshConnectionInstruction({required this.label, required this.value});
+}
+
 class AccountInfo {
   final String name;
   final DateTime? paidTill;
@@ -66,6 +73,7 @@ class _LocalProcessTunnel {
 class TunnelsController extends ChangeNotifier {
   static const int _maxVisibleLogLines = 750;
   static const int _maxStoredFailureDays = 180;
+  static const int _maxSshStartupRetries = 3;
 
   final TunnelsService _service;
   final CliController _cli;
@@ -95,6 +103,9 @@ class TunnelsController extends ChangeNotifier {
   final Map<String, UpgradeInfo> _upgrades = <String, UpgradeInfo>{};
   final Map<String, String> _webInterfaces = <String, String>{};
   final Map<String, ForwardingInfo> _forwardings = <String, ForwardingInfo>{};
+  final Map<String, List<SshConnectionInstruction>> _sshInstructions =
+      <String, List<SshConnectionInstruction>>{};
+  final Map<String, int> _sshStartupRetries = <String, int>{};
   final Map<String, List<DateTime>> _failureEvents = <String, List<DateTime>>{};
 
   AccountInfo? _accountInfo;
@@ -117,6 +128,10 @@ class TunnelsController extends ChangeNotifier {
   UpgradeInfo? upgradeFor(String id) => _upgrades[id];
   String? webInterfaceFor(String id) => _webInterfaces[id];
   ForwardingInfo? forwardingFor(String id) => _forwardings[id];
+  List<SshConnectionInstruction> sshInstructionsFor(String id) {
+    return List.unmodifiable(_sshInstructions[id] ?? const []);
+  }
+
   bool hasKnownPublicUrl(String? publicUrl) {
     final expected = _normalizePublicUrl(publicUrl);
     if (expected == null) return false;
@@ -301,6 +316,8 @@ class TunnelsController extends ChangeNotifier {
     _upgrades.remove(id);
     _webInterfaces.remove(id);
     _forwardings.remove(id);
+    _sshInstructions.remove(id);
+    _sshStartupRetries.remove(id);
     _failureEvents.remove(id);
 
     if (_selectedTunnel?.id == id) {
@@ -319,6 +336,7 @@ class TunnelsController extends ChangeNotifier {
     _tryParseAccount(cleaned);
     _tryParseWebInterface(id, cleaned);
     _checkForwarding(id, cleaned);
+    _tryParseSshInstruction(id, cleaned);
 
     final list = _allLogs[id] ?? <String>[];
     list.add(cleaned);
@@ -432,6 +450,71 @@ class TunnelsController extends ChangeNotifier {
     }
   }
 
+  void _tryParseSshInstruction(String id, String line) {
+    final tunnelIndex = _tunnels.indexWhere((item) => item.id == id);
+    if (tunnelIndex == -1 || _tunnels[tunnelIndex].type != TunnelType.ssh) {
+      return;
+    }
+
+    final numbered = RegExp(r'^\s*\d+\.\s+(.+?)\s*$').firstMatch(line);
+    if (numbered == null) {
+      if (line.contains('Waiting for client connections')) {
+        unawaited(updateStatus(id, TunnelStatus.active));
+      }
+      return;
+    }
+
+    final value = numbered.group(1)!.trim();
+    if (!_looksLikeSshInstruction(value)) return;
+
+    final instruction = SshConnectionInstruction(
+      label: _sshInstructionLabel(value),
+      value: value,
+    );
+
+    final existing = List<SshConnectionInstruction>.from(
+      _sshInstructions[id] ?? const [],
+    );
+    final duplicateIndex = existing.indexWhere(
+      (item) => item.label == instruction.label || item.value == value,
+    );
+
+    if (duplicateIndex == -1) {
+      existing.add(instruction);
+    } else {
+      existing[duplicateIndex] = instruction;
+    }
+
+    _sshInstructions[id] = existing;
+    _sshStartupRetries.remove(id);
+    unawaited(updateStatus(id, TunnelStatus.active));
+  }
+
+  bool _looksLikeSshInstruction(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.startsWith('echo ') ||
+        normalized.startsWith('ssh ') ||
+        normalized.contains('password') ||
+        normalized.contains('known_hosts') ||
+        normalized.contains('ssh-ed25519');
+  }
+
+  String _sshInstructionLabel(String value) {
+    final normalized = value.toLowerCase();
+    if (normalized.startsWith('echo ') ||
+        normalized.contains('known_hosts') ||
+        normalized.contains('ssh-ed25519')) {
+      return 'Known hosts';
+    }
+    if (normalized.startsWith('ssh ')) {
+      return 'SSH';
+    }
+    if (normalized.contains('password')) {
+      return 'Password';
+    }
+    return 'Instruction';
+  }
+
   Future<String?> exportLogsToTempFile(SavedTunnel tunnel) async {
     final logs = _allLogs[tunnel.id] ?? const <String>[];
     if (logs.isEmpty) return null;
@@ -444,12 +527,36 @@ class TunnelsController extends ChangeNotifier {
     return file.path;
   }
 
-  Future<void> startTunnel(SavedTunnel tunnel) async {
+  bool _shouldRetrySshStartup(String id, TunnelType type) {
+    if (type != TunnelType.ssh) return false;
+    if ((_sshInstructions[id] ?? const []).isNotEmpty) return false;
+    if ((_sshStartupRetries[id] ?? 0) >= _maxSshStartupRetries) return false;
+
+    final recentLogs = (_allLogs[id] ?? const <String>[]).reversed
+        .take(8)
+        .join('\n')
+        .toLowerCase();
+
+    if (!recentLogs.contains('/internal/cli')) return false;
+
+    return recentLogs.contains('eof') ||
+        recentLogs.contains('giving up') ||
+        recentLogs.contains('connection reset') ||
+        recentLogs.contains('timeout') ||
+        recentLogs.contains('timed out');
+  }
+
+  Future<void> startTunnel(SavedTunnel tunnel, {bool isRetry = false}) async {
     if (isRunning(tunnel.id)) {
       return;
     }
 
     try {
+      if (!isRetry && tunnel.type == TunnelType.ssh) {
+        _sshStartupRetries.remove(tunnel.id);
+        _sshInstructions.remove(tunnel.id);
+      }
+
       late Process process;
       switch (tunnel.type) {
         case TunnelType.http:
@@ -463,6 +570,21 @@ class TunnelsController extends ChangeNotifier {
           process = await _cli.startSimpleTcpTunnel(
             localPort: tunnel.localPort,
           );
+          break;
+        case TunnelType.postgres:
+          process = await _cli.startSimplePostgresTunnel(
+            localPort: tunnel.localPort,
+            localIp: tunnel.ip,
+          );
+          break;
+        case TunnelType.redis:
+          process = await _cli.startSimpleRedisTunnel(
+            localPort: tunnel.localPort,
+            localIp: tunnel.ip,
+          );
+          break;
+        case TunnelType.ssh:
+          process = await _cli.startSimpleSshTunnel();
           break;
       }
 
@@ -492,11 +614,39 @@ class TunnelsController extends ChangeNotifier {
         final wasStopping = _stoppingIds.remove(id);
         _runningProcesses.remove(id);
 
+        if (!wasStopping &&
+            code != 0 &&
+            _shouldRetrySshStartup(tunnel.id, tunnel.type)) {
+          final retryNumber = (_sshStartupRetries[id] ?? 0) + 1;
+          _sshStartupRetries[id] = retryNumber;
+          _appendLog(
+            id,
+            '[WARN] SSH startup failed while contacting tuna API. '
+            'Retrying ($retryNumber/$_maxSshStartupRetries)...',
+          );
+          unawaited(
+            Future<void>.delayed(Duration(seconds: retryNumber * 2), () async {
+              final latestIndex = _tunnels.indexWhere((item) => item.id == id);
+              if (latestIndex == -1) return;
+
+              final latest = _tunnels[latestIndex];
+              if (latest.status == TunnelStatus.inactive || isRunning(id)) {
+                return;
+              }
+              await startTunnel(latest, isRetry: true);
+            }),
+          );
+          return;
+        }
+
         final nextStatus = wasStopping
             ? TunnelStatus.inactive
             : (code == 0 ? TunnelStatus.inactive : TunnelStatus.failed);
 
         _appendLog(id, '--- EXIT code=$code ---');
+        if (nextStatus != TunnelStatus.failed) {
+          _sshStartupRetries.remove(id);
+        }
         updateStatus(id, nextStatus);
       });
     } catch (e) {
@@ -690,6 +840,12 @@ class TunnelsController extends ChangeNotifier {
     if (line.contains('Account:')) return true;
     if (line.contains('Web Interface:')) return true;
     if (line.contains('Forwarding ')) return true;
+    if (line.contains('Connection instruction:')) return true;
+    final sshInstruction = RegExp(r'^\s*\d+\.\s+(.+?)\s*$').firstMatch(line);
+    if (sshInstruction != null &&
+        _looksLikeSshInstruction(sshInstruction.group(1) ?? '')) {
+      return true;
+    }
     return false;
   }
 
@@ -720,7 +876,13 @@ class TunnelsController extends ChangeNotifier {
 
     for (final item in remote) {
       final protocol = item.protocol?.toLowerCase().trim() ?? '';
-      final type = protocol.contains('tcp') ? TunnelType.tcp : TunnelType.http;
+      final type = protocol.contains('postgres')
+          ? TunnelType.postgres
+          : protocol.contains('redis')
+          ? TunnelType.redis
+          : protocol.contains('tcp')
+          ? TunnelType.tcp
+          : TunnelType.http;
       final port = _extractLocalPort(item.forwardsTo);
       if (port == null) continue;
 
@@ -855,7 +1017,7 @@ $items | ConvertTo-Json -Compress
     if (pid <= 0 || commandLine.isEmpty) return null;
 
     final match = RegExp(
-      r'(?:^|\s)tuna(?:\.exe)?\s+(http|tcp)\s+([^\s]+)',
+      r'(?:^|\s)tuna(?:\.exe)?\s+(http|tcp|postgres|redis)\s+([^\s]+)',
       caseSensitive: false,
     ).firstMatch(commandLine);
     if (match == null) return null;
@@ -864,7 +1026,12 @@ $items | ConvertTo-Json -Compress
     final rawAddress = (match.group(2) ?? '').trim();
     if (rawAddress.isEmpty) return null;
 
-    final type = rawType == 'tcp' ? TunnelType.tcp : TunnelType.http;
+    final type = switch (rawType) {
+      'tcp' => TunnelType.tcp,
+      'postgres' => TunnelType.postgres,
+      'redis' => TunnelType.redis,
+      _ => TunnelType.http,
+    };
 
     int? port;
     if (rawAddress.contains(':')) {

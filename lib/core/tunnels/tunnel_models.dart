@@ -4,6 +4,8 @@ import '../cli/cli_commands.dart';
 
 enum TunnelStatus { inactive, starting, active, failed }
 
+const _unset = Object();
+
 @immutable
 class SavedTunnel {
   final String id;
@@ -30,8 +32,8 @@ class SavedTunnel {
     String? id,
     String? name,
     int? localPort,
-    String? ip,
-    String? subdomain,
+    Object? ip = _unset,
+    Object? subdomain = _unset,
     TunnelType? type,
     TunnelStatus? status,
     DateTime? lastStartedAt,
@@ -40,8 +42,10 @@ class SavedTunnel {
       id: id ?? this.id,
       name: name ?? this.name,
       localPort: localPort ?? this.localPort,
-      ip: ip ?? this.ip,
-      subdomain: subdomain ?? this.subdomain,
+      ip: identical(ip, _unset) ? this.ip : ip as String?,
+      subdomain: identical(subdomain, _unset)
+          ? this.subdomain
+          : subdomain as String?,
       type: type ?? this.type,
       status: status ?? this.status,
       lastStartedAt: lastStartedAt ?? this.lastStartedAt,

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:tuna/app/l10n/app_localizations.dart';
 import '../app/uikit/widgets/simple_select_field.dart';
 import '../core/tunnels/tunnel_models.dart';
 import '../di/tabs/tabs_controller.dart';
@@ -93,7 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось запустить тоннель')),
+        SnackBar(content: Text(context.l10n.t('dashboard.failedStart'))),
       );
     }
   }
@@ -103,9 +104,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await launchWeb(url);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Не удалось открыть URL')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.t('dashboard.failedOpenUrl'))),
+      );
     }
   }
 
@@ -281,7 +282,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         final tunnelOptions = <SimpleSelectOption<String>>[
-          const SimpleSelectOption(value: _allTunnelId, label: 'All'),
+          SimpleSelectOption(
+            value: _allTunnelId,
+            label: context.l10n.t('dashboard.all'),
+          ),
           ...tunnels.map((t) => SimpleSelectOption(value: t.id, label: t.name)),
         ];
         final periodOptions = const <SimpleSelectOption<_FailuresPeriod>>[
@@ -315,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Dashboard',
+                    context.l10n.t('dashboard.title'),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
@@ -363,7 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            '2 последних запуска',
+                            context.l10n.t('dashboard.latestStarts'),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
@@ -371,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: latestStarted.isEmpty
                                 ? Center(
                                     child: Text(
-                                      'Запуски пока не зафиксированы.',
+                                      context.l10n.t('dashboard.noStarts'),
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodyMedium,
