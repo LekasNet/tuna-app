@@ -341,6 +341,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
   final ScrollController _logScrollController = ScrollController();
 
   bool _editing = false;
+  bool _sshInstructionsVisible = false;
   _LogFilter _logFilter = _LogFilter.all;
 
   TunnelsController get controller => widget.controller;
@@ -373,6 +374,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     _subController.text = t.subdomain ?? '';
     _type = t.type;
     _editing = false;
+    _sshInstructionsVisible = false;
   }
 
   @override
@@ -560,6 +562,7 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     final address = _displayTargetForTunnel(tunnel);
 
     final typeLabel = tunnelTypeLabel(tunnel.type);
+    final sshInstructions = controller.sshInstructionsFor(tunnel.id);
 
     final forwarding = controller.forwardingFor(tunnel.id);
     final webInterfaceUrl = controller.webInterfaceFor(tunnel.id);
@@ -573,9 +576,13 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
       children: [
         _infoRow('Название', tunnel.name),
         _infoRow('Тип', typeLabel),
-        _infoRow('Адрес', address),
+        if (tunnel.type != TunnelType.ssh) _infoRow('Адрес', address),
         if (tunnel.subdomain != null && tunnel.subdomain!.isNotEmpty)
           _infoRow('Subdomain', tunnel.subdomain!),
+        if (tunnel.type == TunnelType.ssh && sshInstructions.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          _buildSshInstructions(context, sshInstructions),
+        ],
 
         // URL:
         if (forwarding != null) ...[
@@ -672,7 +679,110 @@ class _TunnelDetailsViewState extends State<_TunnelDetailsView> {
     );
   }
 
+  Widget _buildSshInstructions(
+    BuildContext context,
+    List<SshConnectionInstruction> instructions,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 100,
+                child: Text(
+                  'SSH',
+                  style: TextStyle(color: Colors.grey.shade500),
+                ),
+              ),
+              const Expanded(
+                child: Text(
+                  'Connection instructions',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                tooltip: _sshInstructionsVisible ? 'Скрыть' : 'Показать',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  _sshInstructionsVisible
+                      ? Icons.visibility_off
+                      : Icons.visibility,
+                  size: 18,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _sshInstructionsVisible = !_sshInstructionsVisible;
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final instruction in instructions)
+            _buildSshInstructionRow(context, instruction),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSshInstructionRow(
+    BuildContext context,
+    SshConnectionInstruction instruction,
+  ) {
+    final shownValue = _sshInstructionsVisible
+        ? instruction.value
+        : _maskSecret(instruction.value);
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 100, bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              instruction.label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.grey.shade500),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              shownValue,
+              maxLines: 1,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: Color(0xFF3498DB),
+              ),
+            ),
+          ),
+          _HoverCopyIcon(
+            tooltip: 'Скопировать',
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: instruction.value));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.t('common.copyAddress')),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _maskSecret(String value) {
+    final length = value.length.clamp(12, 32).toInt();
+    return List.filled(length, '•').join();
+  }
+
   Widget _infoRow(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
