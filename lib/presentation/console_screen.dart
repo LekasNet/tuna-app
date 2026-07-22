@@ -165,7 +165,7 @@ class _ConsoleScreenState extends State<ConsoleScreen> {
                 color: const Color(0xFF111827),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.5),
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
                 ),
               ),
               child: Scrollbar(
@@ -506,7 +506,7 @@ class _PromptPrefix extends StatelessWidget {
       style: TextStyle(fontFamily: fontFamily, fontSize: 12, color: promptColor)
           .copyWith(
             shadows: [
-              Shadow(color: dollarColor.withOpacity(0.3), blurRadius: 1),
+              Shadow(color: dollarColor.withValues(alpha: 0.3), blurRadius: 1),
             ],
           ),
       overflow: TextOverflow.ellipsis,

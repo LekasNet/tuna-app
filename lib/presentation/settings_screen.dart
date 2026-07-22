@@ -161,23 +161,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!tokenSaved) {
       statusText = context.l10n.t('settings.tokenMissing');
-      bgColor = Colors.grey.withOpacity(0.08);
-      textColor = theme.colorScheme.onSurface.withOpacity(0.6);
+      bgColor = Colors.grey.withValues(alpha: 0.08);
+      textColor = theme.colorScheme.onSurface.withValues(alpha: 0.6);
     } else {
       switch (c.tokenStatus) {
         case TokenStatus.savedOk:
           statusText = context.l10n.t('settings.tokenSaved');
-          bgColor = Colors.green.withOpacity(0.12);
+          bgColor = Colors.green.withValues(alpha: 0.12);
           textColor = Colors.green.shade700;
           break;
         case TokenStatus.savedButFailedCheck:
           statusText = context.l10n.t('settings.tokenSavedCheckFailed');
-          bgColor = Colors.amber.withOpacity(0.16);
+          bgColor = Colors.amber.withValues(alpha: 0.16);
           textColor = Colors.amber.shade800;
           break;
         case TokenStatus.none:
           statusText = context.l10n.t('settings.tokenSaved');
-          bgColor = Colors.green.withOpacity(0.12);
+          bgColor = Colors.green.withValues(alpha: 0.12);
           textColor = Colors.green.shade700;
           break;
       }
@@ -187,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,7 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,8 +336,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: apiKeySaved
-                    ? Colors.green.withOpacity(0.12)
-                    : Colors.grey.withOpacity(0.08),
+                    ? Colors.green.withValues(alpha: 0.12)
+                    : Colors.grey.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -347,7 +347,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: apiKeySaved
                       ? Colors.green.shade700
-                      : theme.colorScheme.onSurface.withOpacity(0.6),
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             )
@@ -444,7 +444,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,8 +475,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: tunaPathSaved
-                    ? Colors.green.withOpacity(0.12)
-                    : Colors.grey.withOpacity(0.08),
+                    ? Colors.green.withValues(alpha: 0.12)
+                    : Colors.grey.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -486,7 +486,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: tunaPathSaved
                       ? theme.colorScheme.onSurface
-                      : theme.colorScheme.onSurface.withOpacity(0.6),
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
             )
@@ -589,7 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.5)),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

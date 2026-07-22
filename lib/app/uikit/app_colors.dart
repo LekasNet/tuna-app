@@ -68,7 +68,7 @@ class AppColors {
       ),
       textTheme: const TextTheme(bodyMedium: TextStyle(color: lightBaseText)),
       colorScheme: const ColorScheme.light(
-        background: lightBackground,
+        surface: lightBackground,
         primary: lightBaseText,
         secondary: lightAdditionalText,
         error: error,
@@ -95,7 +95,7 @@ class AppColors {
       ),
       textTheme: const TextTheme(bodyMedium: TextStyle(color: darkBaseText)),
       colorScheme: const ColorScheme.dark(
-        background: darkBackground,
+        surface: darkBackground,
         primary: darkBaseText,
         secondary: darkAdditionalText,
         error: error,

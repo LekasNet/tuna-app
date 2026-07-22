@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:bitsdojo_window/bitsdojo_window.dart';
@@ -61,7 +62,7 @@ class AppShell extends StatelessWidget {
                 tunnelsController: tunnelsController,
                 notificationsController: notificationsController,
               ),
-              Container(width: 1, color: theme.dividerColor.withOpacity(0.6)),
+              Container(width: 1, color: theme.dividerColor.withValues(alpha: 0.6)),
               Expanded(
                 child: Column(
                   children: [
@@ -129,7 +130,7 @@ class _WindowButtonsState extends State<_WindowButtons> {
     final cs = theme.colorScheme;
 
     final iconColor = cs.onSurface;
-    final hoverBg = cs.surfaceContainerHighest.withOpacity(0.8);
+    final hoverBg = cs.surfaceContainerHighest.withValues(alpha: 0.8);
     final pressedBg = cs.surfaceContainerHighest;
 
     final buttonColors = WindowButtonColors(
@@ -144,7 +145,7 @@ class _WindowButtonsState extends State<_WindowButtons> {
       iconNormal: iconColor,
       iconMouseOver: cs.onError,
       iconMouseDown: cs.onError,
-      mouseOver: cs.error.withOpacity(0.9),
+      mouseOver: cs.error.withValues(alpha: 0.9),
       mouseDown: cs.error,
     );
 
@@ -180,6 +181,8 @@ class _LeftSideMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sidebarHeaderHeight = Platform.isMacOS ? 88.0 : 58.0;
+    final brandTopPadding = Platform.isMacOS ? 36.0 : 6.0;
     final isDark = theme.brightness == Brightness.dark;
     final menuBg = isDark
         ? AppColors.sidebarBackgroundDark
@@ -229,7 +232,7 @@ class _LeftSideMenu extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      height: 58,
+                      height: sidebarHeaderHeight,
                       child: MoveWindow(child: const SizedBox.expand()),
                     ),
                     const SizedBox(height: 4),
@@ -297,10 +300,10 @@ class _LeftSideMenu extends StatelessWidget {
                 left: 0,
                 right: 0,
                 top: 0,
-                height: 58,
+                height: sidebarHeaderHeight,
                 child: MoveWindow(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+                    padding: EdgeInsets.fromLTRB(12, brandTopPadding, 12, 0),
                     child: Align(
                       alignment: Alignment.topLeft,
                       child: Column(
@@ -325,7 +328,12 @@ class _LeftSideMenu extends StatelessWidget {
               if (panelOpen)
                 Positioned.fill(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 62, 10, 70),
+                    padding: EdgeInsets.fromLTRB(
+                      10,
+                      sidebarHeaderHeight + 4,
+                      10,
+                      70,
+                    ),
                     child: _NotificationsPanel(
                       notificationsController: notificationsController,
                     ),
@@ -395,7 +403,7 @@ class _NotificationsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final notifications = notificationsController.notifications;
-    final mutedColor = theme.colorScheme.onSurface.withOpacity(0.68);
+    final mutedColor = theme.colorScheme.onSurface.withValues(alpha: 0.68);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -645,10 +653,10 @@ class _NotificationTileState extends State<_NotificationTile> {
     final theme = Theme.of(context);
     final accent = _accentFor(widget.notification.severity);
     final baseText = theme.colorScheme.onSurface;
-    final secondaryText = baseText.withOpacity(0.74);
+    final secondaryText = baseText.withValues(alpha: 0.74);
 
     return Material(
-      color: accent.withOpacity(0.08),
+      color: accent.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -716,14 +724,14 @@ class _TabButtonState extends State<_TabButton> {
     Color fg;
 
     if (widget.selected) {
-      bg = cs.primary.withOpacity(0.10);
+      bg = cs.primary.withValues(alpha: 0.10);
       fg = cs.primary;
     } else if (_hovered) {
-      bg = cs.primary.withOpacity(0.06);
+      bg = cs.primary.withValues(alpha: 0.06);
       fg = cs.primary;
     } else {
       bg = Colors.transparent;
-      fg = cs.onSurface.withOpacity(0.7);
+      fg = cs.onSurface.withValues(alpha: 0.7);
     }
 
     return Padding(
@@ -789,7 +797,7 @@ class _AccountSidebarTile extends StatelessWidget {
     final cs = theme.colorScheme;
 
     final primaryText = cs.onSurface;
-    final secondaryText = cs.onSurface.withOpacity(0.6);
+    final secondaryText = cs.onSurface.withValues(alpha: 0.6);
     final subtitle = context.l10n.format('notifications.subscriptionUntil', {
       'date': _formatDate(context, account.paidTill),
     });
@@ -893,12 +901,12 @@ class _BottomIconButtonState extends State<_BottomIconButton> {
     final selected = widget.tabsController.current == widget.tab;
 
     final bg = selected
-        ? cs.primary.withOpacity(0.18)
-        : (_hovered ? cs.primary.withOpacity(0.08) : Colors.transparent);
+        ? cs.primary.withValues(alpha: 0.18)
+        : (_hovered ? cs.primary.withValues(alpha: 0.08) : Colors.transparent);
 
     final fg = selected
         ? cs.primary
-        : cs.onSurface.withOpacity(_hovered ? 0.9 : 0.7);
+        : cs.onSurface.withValues(alpha: _hovered ? 0.9 : 0.7);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -945,7 +953,7 @@ class _NotificationToggleButtonState extends State<_NotificationToggleButton> {
     final selected = widget.notificationsController.isPanelOpen;
     final hasNotifications = widget.notificationsController.hasNotifications;
 
-    final fg = selected ? cs.primary : cs.onSurface.withOpacity(0.74);
+    final fg = selected ? cs.primary : cs.onSurface.withValues(alpha: 0.74);
     final bellScale = selected ? 1.08 : 1.0;
     final bellOffset = selected ? const Offset(0, -0.12) : Offset.zero;
 
@@ -979,8 +987,8 @@ class _NotificationToggleButtonState extends State<_NotificationToggleButton> {
                             Icons.notifications_none_rounded,
                             size: 20,
                             color: isDark
-                                ? Colors.black.withOpacity(0.46)
-                                : Colors.black.withOpacity(0.22),
+                                ? Colors.black.withValues(alpha: 0.46)
+                                : Colors.black.withValues(alpha: 0.22),
                           ),
                         ),
                       ),

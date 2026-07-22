@@ -7,8 +7,15 @@ class CliController {
   /// Пользовательский путь до tuna (если указали вручную в настройках).
   /// Может быть null.
   final String? customExecutablePath;
+  String? _authToken;
 
-  CliController({this.customExecutablePath});
+  CliController({this.customExecutablePath, String? authToken})
+    : _authToken = authToken;
+
+  void updateAuthToken(String? token) {
+    final clean = token?.trim() ?? '';
+    _authToken = clean.isEmpty ? null : clean;
+  }
 
   /// Внутренний геттер, выбирающий реальный исполняемый файл.
   /// Если customExecutablePath задан — используем его.
@@ -35,53 +42,73 @@ class CliController {
     required int localPort,
     String? localIp,
     String? subdomain,
+    bool useAuthToken = false,
   }) async {
     final command = CliCommands.simpleHttp(
       localPort: localPort,
       localIp: localIp,
       subdomain: subdomain,
     );
-    return _startTunnelProcess(command);
+    return _startTunnelProcess(command, useAuthToken: useAuthToken);
   }
 
-  Future<Process> startSimpleTcpTunnel({required int localPort}) async {
+  Future<Process> startSimpleTcpTunnel({
+    required int localPort,
+    bool useAuthToken = false,
+  }) async {
     final command = CliCommands.simpleTcp(localPort: localPort);
-    return _startTunnelProcess(command);
+    return _startTunnelProcess(command, useAuthToken: useAuthToken);
   }
 
   Future<Process> startSimplePostgresTunnel({
     required int localPort,
     String? localIp,
+    bool useAuthToken = false,
   }) async {
     final command = CliCommands.simplePostgres(
       localPort: localPort,
       localIp: localIp,
     );
-    return _startTunnelProcess(command);
+    return _startTunnelProcess(command, useAuthToken: useAuthToken);
   }
 
   Future<Process> startSimpleRedisTunnel({
     required int localPort,
     String? localIp,
+    bool useAuthToken = false,
   }) async {
     final command = CliCommands.simpleRedis(
       localPort: localPort,
       localIp: localIp,
     );
-    return _startTunnelProcess(command);
+    return _startTunnelProcess(command, useAuthToken: useAuthToken);
   }
 
-  Future<Process> startSimpleSshTunnel() async {
-    return _startTunnelProcess(CliCommands.simpleSsh);
+  Future<Process> startSimpleSshTunnel({bool useAuthToken = false}) async {
+    return _startTunnelProcess(
+      CliCommands.simpleSsh,
+      useAuthToken: useAuthToken,
+    );
   }
 
-  Future<Process> _startTunnelProcess(TunnelCommand command) async {
+  Future<Process> _startTunnelProcess(
+    TunnelCommand command, {
+    required bool useAuthToken,
+  }) async {
     final process = await Process.start(
       _executable,
-      command.args,
+      useAuthToken ? _argsWithAuthToken(command.args) : command.args,
       runInShell: false, // важно для корректного kill()
     );
     return process;
+  }
+
+  List<String> _argsWithAuthToken(List<String> args) {
+    final token = _authToken?.trim();
+    if (token == null || token.isEmpty) {
+      return args;
+    }
+    return <String>[...args, '--token=$token'];
   }
 
   /// Пытаемся завершить туннель «мягко»
