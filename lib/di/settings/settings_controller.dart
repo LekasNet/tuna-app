@@ -42,6 +42,7 @@ class SettingsController extends ChangeNotifier {
     themeMode = await _service.loadThemeMode();
     language = await _service.loadLanguage();
     _token = (await _service.loadToken()) ?? '';
+    _cli.updateAuthToken(_token);
     apiKey = await _service.loadApiKey();
     tunaPath = await _service.loadTunaPath();
 
@@ -83,6 +84,7 @@ class SettingsController extends ChangeNotifier {
     final tokenClean = newToken?.trim() ?? '';
 
     _token = tokenClean;
+    _cli.updateAuthToken(tokenClean);
     await _service.saveToken(tokenClean);
     _tokenStatus = TokenStatus.none;
 
@@ -91,6 +93,8 @@ class SettingsController extends ChangeNotifier {
     await _service.saveExpiryDate(null);
     accountName = null;
     subscriptionExpiry = null;
+
+    await _saveTokenToTunaConfig(tokenClean);
 
     // sync with YAML and validate
     await syncTokenWithTunaConfig();
@@ -124,9 +128,7 @@ class SettingsController extends ChangeNotifier {
       ], runInShell: false);
 
       final output =
-          (result.stdout?.toString() ?? '') +
-          '\n' +
-          (result.stderr?.toString() ?? '');
+          '${result.stdout?.toString() ?? ''}\n${result.stderr?.toString() ?? ''}';
 
       final match = RegExp(
         r'Valid configuration file at\s+(.+)',
@@ -170,6 +172,7 @@ class SettingsController extends ChangeNotifier {
 
       // YAML is the source of truth
       _token = yamlToken;
+      _cli.updateAuthToken(yamlToken);
       await _service.saveToken(yamlToken);
 
       // reset account info
@@ -185,6 +188,21 @@ class SettingsController extends ChangeNotifier {
     }
   }
 
+  Future<void> _saveTokenToTunaConfig(String token) async {
+    if (token.isEmpty) return;
+
+    try {
+      await Process.run(_tunaExecutable, [
+        'config',
+        'save-token',
+        token,
+      ], runInShell: false);
+    } catch (_) {
+      // The app still passes --token to tunnel commands if the CLI config
+      // cannot be updated from a macOS GUI process.
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // TOKEN VALIDATION (tuna http 8080)
   // ---------------------------------------------------------------------------
@@ -196,6 +214,7 @@ class SettingsController extends ChangeNotifier {
       final process = await Process.start(exe, [
         'http',
         '8080',
+        if (_token.trim().isNotEmpty) '--token=${_token.trim()}',
       ], runInShell: Platform.isWindows);
 
       final completer = Completer<void>();

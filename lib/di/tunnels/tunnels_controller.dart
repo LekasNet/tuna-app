@@ -546,7 +546,20 @@ class TunnelsController extends ChangeNotifier {
         recentLogs.contains('timed out');
   }
 
-  Future<void> startTunnel(SavedTunnel tunnel, {bool isRetry = false}) async {
+  bool _shouldRetryWithTokenFallback(String id) {
+    final recentLogs = (_allLogs[id] ?? const <String>[]).reversed
+        .take(12)
+        .join('\n')
+        .toLowerCase();
+
+    return recentLogs.contains('tuna token must be specified');
+  }
+
+  Future<void> startTunnel(
+    SavedTunnel tunnel, {
+    bool isRetry = false,
+    bool useTokenFallback = false,
+  }) async {
     if (isRunning(tunnel.id)) {
       return;
     }
@@ -564,27 +577,33 @@ class TunnelsController extends ChangeNotifier {
             localPort: tunnel.localPort,
             localIp: tunnel.ip,
             subdomain: tunnel.subdomain,
+            useAuthToken: useTokenFallback,
           );
           break;
         case TunnelType.tcp:
           process = await _cli.startSimpleTcpTunnel(
             localPort: tunnel.localPort,
+            useAuthToken: useTokenFallback,
           );
           break;
         case TunnelType.postgres:
           process = await _cli.startSimplePostgresTunnel(
             localPort: tunnel.localPort,
             localIp: tunnel.ip,
+            useAuthToken: useTokenFallback,
           );
           break;
         case TunnelType.redis:
           process = await _cli.startSimpleRedisTunnel(
             localPort: tunnel.localPort,
             localIp: tunnel.ip,
+            useAuthToken: useTokenFallback,
           );
           break;
         case TunnelType.ssh:
-          process = await _cli.startSimpleSshTunnel();
+          process = await _cli.startSimpleSshTunnel(
+            useAuthToken: useTokenFallback,
+          );
           break;
       }
 
@@ -616,6 +635,20 @@ class TunnelsController extends ChangeNotifier {
 
         if (!wasStopping &&
             code != 0 &&
+            !useTokenFallback &&
+            _shouldRetryWithTokenFallback(id)) {
+          _appendLog(
+            id,
+            '[WARN] tuna CLI не нашёл сохранённый токен. Повторяем запуск с токеном из настроек приложения...',
+          );
+          unawaited(
+            startTunnel(tunnel, isRetry: isRetry, useTokenFallback: true),
+          );
+          return;
+        }
+
+        if (!wasStopping &&
+            code != 0 &&
             _shouldRetrySshStartup(tunnel.id, tunnel.type)) {
           final retryNumber = (_sshStartupRetries[id] ?? 0) + 1;
           _sshStartupRetries[id] = retryNumber;
@@ -633,7 +666,11 @@ class TunnelsController extends ChangeNotifier {
               if (latest.status == TunnelStatus.inactive || isRunning(id)) {
                 return;
               }
-              await startTunnel(latest, isRetry: true);
+              await startTunnel(
+                latest,
+                isRetry: true,
+                useTokenFallback: useTokenFallback,
+              );
             }),
           );
           return;
@@ -692,6 +729,16 @@ class TunnelsController extends ChangeNotifier {
         tunnel.id,
         '[ERRO] Failed to stop external tuna process pid=$externalPid',
       );
+    }
+  }
+
+  Future<void> stopAllTunnels() async {
+    final running = _tunnels
+        .where((tunnel) => isRunning(tunnel.id))
+        .toList(growable: false);
+
+    for (final tunnel in running) {
+      await stopTunnel(tunnel);
     }
   }
 

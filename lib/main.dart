@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'core/cli/cli_controller.dart';
+import 'core/macos/macos_status_bar_service.dart';
 import 'core/storage/shared_preferences_migration.dart';
 import 'core/updates/app_update_service.dart';
 import 'di/console/console_controller.dart';
@@ -18,8 +20,18 @@ import 'di/tunnels/tunnels_controller.dart';
 import 'di/tunnels/tunnels_service.dart';
 import 'presentation/tuna_app.dart';
 
+class _MainWindowCloseListener extends WindowListener {
+  @override
+  Future<void> onWindowClose() async {
+    if (Platform.isMacOS) {
+      await MacosStatusBarService.hideWindow();
+    }
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
 
   await migrateLegacySharedPreferences();
 
@@ -60,6 +72,29 @@ void main() async {
   final consoleController = ConsoleController();
   final dockerController = DockerController();
   final remoteTunnelsController = RemoteTunnelsController();
+  final macosStatusBarService = MacosStatusBarService(
+    tunnelsController: tunnelsController,
+  );
+  await macosStatusBarService.initialize();
+
+  if (Platform.isMacOS) {
+    await windowManager.setPreventClose(true);
+    windowManager.addListener(_MainWindowCloseListener());
+  }
+
+  const initialSize = Size(800, 600);
+  const windowOptions = WindowOptions(
+    size: initialSize,
+    minimumSize: initialSize,
+    center: true,
+    title: 'tuna_unofficial_client',
+    titleBarStyle: TitleBarStyle.hidden,
+  );
+
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   runApp(
     TunaApp(
@@ -96,13 +131,4 @@ void main() async {
       releaseUrl: update?.releaseUrl,
     );
   }());
-
-  doWhenWindowReady(() {
-    const initialSize = Size(800, 600);
-    appWindow.minSize = initialSize;
-    appWindow.size = initialSize;
-    appWindow.alignment = Alignment.center;
-    appWindow.title = 'tuna_unofficial_client';
-    appWindow.show();
-  });
 }
