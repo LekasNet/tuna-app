@@ -642,11 +642,7 @@ class TunnelsController extends ChangeNotifier {
             '[WARN] tuna CLI не нашёл сохранённый токен. Повторяем запуск с токеном из настроек приложения...',
           );
           unawaited(
-            startTunnel(
-              tunnel,
-              isRetry: isRetry,
-              useTokenFallback: true,
-            ),
+            startTunnel(tunnel, isRetry: isRetry, useTokenFallback: true),
           );
           return;
         }
@@ -733,6 +729,16 @@ class TunnelsController extends ChangeNotifier {
         tunnel.id,
         '[ERRO] Failed to stop external tuna process pid=$externalPid',
       );
+    }
+  }
+
+  Future<void> stopAllTunnels() async {
+    final running = _tunnels
+        .where((tunnel) => isRunning(tunnel.id))
+        .toList(growable: false);
+
+    for (final tunnel in running) {
+      await stopTunnel(tunnel);
     }
   }
 
