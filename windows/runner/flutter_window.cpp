@@ -407,8 +407,10 @@ void FlutterWindow::ShowTrayMenu() {
 
   int x = cursor_position.x - kTrayMenuWidth + 18;
   int y = cursor_position.y - menu_height - 8;
-  x = std::max(monitor_info.rcWork.left + 4,
-               std::min(x, monitor_info.rcWork.right - kTrayMenuWidth - 4));
+  const int min_x = static_cast<int>(monitor_info.rcWork.left) + 4;
+  const int max_x =
+      static_cast<int>(monitor_info.rcWork.right) - kTrayMenuWidth - 4;
+  x = std::max(min_x, std::min(x, max_x));
   if (y < monitor_info.rcWork.top) {
     y = cursor_position.y + 8;
   }
@@ -484,12 +486,12 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
       } else {
         DrawRoundRect(hdc, action_rect, Rgb(239, 243, 247),
                       Rgb(222, 228, 235), 15);
-        auto old_font = SelectObject(hdc, icon_font);
+        auto old_icon_font = SelectObject(hdc, icon_font);
         SetTextColor(hdc, tunnel.running ? Rgb(200, 58, 70)
                                          : Rgb(40, 149, 92));
         DrawText(hdc, tunnel.running ? L"■" : L"▶", -1, &action_rect,
                  DT_SINGLELINE | DT_CENTER | DT_VCENTER);
-        SelectObject(hdc, old_font);
+        SelectObject(hdc, old_icon_font);
       }
 
       y += kTunnelRowHeight;
