@@ -2,6 +2,7 @@
 
 #include <flutter/standard_method_codec.h>
 #include <shellapi.h>
+#include <windowsx.h>
 
 #include <optional>
 #include <sstream>
@@ -161,6 +162,51 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return 0;
   }
 
+  if (message == kTrayCallbackMessage) {
+    if (LOWORD(lparam) == WM_LBUTTONUP || LOWORD(lparam) == NIN_SELECT ||
+        LOWORD(lparam) == NIN_KEYSELECT) {
+      RestoreFromTray();
+    } else if (LOWORD(lparam) == WM_RBUTTONUP ||
+               LOWORD(lparam) == WM_CONTEXTMENU) {
+      ShowTrayMenu();
+    }
+    return 0;
+  }
+
+  if (message == WM_COMMAND) {
+    const UINT command_id = LOWORD(wparam);
+    const UINT tunnel_count = static_cast<UINT>(tray_tunnels_.size());
+    if (command_id >= kFirstTunnelOpenMenuId &&
+        command_id < kFirstTunnelOpenMenuId + tunnel_count) {
+      const auto index = command_id - kFirstTunnelOpenMenuId;
+      RestoreFromTray();
+      InvokeFlutterMethod(
+          "statusBarOpenTunnel",
+          std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
+      return 0;
+    }
+    if (command_id >= kFirstTunnelActionMenuId &&
+        command_id < kFirstTunnelActionMenuId + tunnel_count) {
+      const auto index = command_id - kFirstTunnelActionMenuId;
+      InvokeFlutterMethod(
+          "statusBarToggleTunnel",
+          std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
+      return 0;
+    }
+    if (command_id == kOpenProgramMenuId) {
+      RestoreFromTray();
+      return 0;
+    }
+    if (command_id == kStopAllTunnelsMenuId) {
+      InvokeFlutterMethod("statusBarStopAll", nullptr);
+      return 0;
+    }
+    if (command_id == kQuitMenuId) {
+      QuitFromTray();
+      return 0;
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -178,49 +224,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         DestroyWindow(hwnd);
       } else {
         HideToTray();
-      }
-      return 0;
-
-    case WM_COMMAND: {
-      const UINT command_id = LOWORD(wparam);
-      const UINT tunnel_count = static_cast<UINT>(tray_tunnels_.size());
-      if (command_id >= kFirstTunnelOpenMenuId &&
-          command_id < kFirstTunnelOpenMenuId + tunnel_count) {
-        const auto index = command_id - kFirstTunnelOpenMenuId;
-        RestoreFromTray();
-        InvokeFlutterMethod(
-            "statusBarOpenTunnel",
-            std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
-        return 0;
-      }
-      if (command_id >= kFirstTunnelActionMenuId &&
-          command_id < kFirstTunnelActionMenuId + tunnel_count) {
-        const auto index = command_id - kFirstTunnelActionMenuId;
-        InvokeFlutterMethod(
-            "statusBarToggleTunnel",
-            std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
-        return 0;
-      }
-      if (command_id == kOpenProgramMenuId) {
-        RestoreFromTray();
-        return 0;
-      }
-      if (command_id == kStopAllTunnelsMenuId) {
-        InvokeFlutterMethod("statusBarStopAll", nullptr);
-        return 0;
-      }
-      if (command_id == kQuitMenuId) {
-        QuitFromTray();
-        return 0;
-      }
-      break;
-    }
-
-    case kTrayCallbackMessage:
-      if (lparam == WM_LBUTTONUP) {
-        RestoreFromTray();
-      } else if (lparam == WM_RBUTTONUP || lparam == WM_CONTEXTMENU) {
-        ShowTrayMenu();
       }
       return 0;
 
