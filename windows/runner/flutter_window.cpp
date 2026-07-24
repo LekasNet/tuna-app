@@ -21,10 +21,14 @@ constexpr UINT kOpenProgramMenuId = 40101;
 constexpr UINT kStopAllTunnelsMenuId = 40201;
 constexpr UINT kQuitMenuId = 40202;
 constexpr wchar_t kTrayMenuWindowClassName[] = L"TU_CLIENT_TRAY_MENU_WINDOW";
-constexpr int kTrayMenuWidth = 320;
-constexpr int kTunnelRowHeight = 54;
-constexpr int kCommandRowHeight = 34;
-constexpr int kMenuPadding = 8;
+constexpr int kTrayMenuWidth = 640;
+constexpr int kTunnelRowHeight = 108;
+constexpr int kCommandRowHeight = 68;
+constexpr int kMenuPadding = 16;
+constexpr int kMenuRadius = 24;
+constexpr int kRowRadius = 16;
+constexpr int kActionButtonSize = 60;
+constexpr int kActionButtonRight = 36;
 
 UINT ShowExistingWindowMessage() {
   static const UINT message =
@@ -405,19 +409,20 @@ void FlutterWindow::ShowTrayMenu() {
   monitor_info.cbSize = sizeof(MONITORINFO);
   GetMonitorInfo(monitor, &monitor_info);
 
-  int x = cursor_position.x - kTrayMenuWidth + 18;
-  int y = cursor_position.y - menu_height - 8;
-  const int min_x = static_cast<int>(monitor_info.rcWork.left) + 4;
+  int x = cursor_position.x - kTrayMenuWidth + 36;
+  int y = cursor_position.y - menu_height - 16;
+  const int min_x = static_cast<int>(monitor_info.rcWork.left) + 8;
   const int max_x =
-      static_cast<int>(monitor_info.rcWork.right) - kTrayMenuWidth - 4;
+      static_cast<int>(monitor_info.rcWork.right) - kTrayMenuWidth - 8;
   x = std::max(min_x, std::min(x, max_x));
-  if (y < monitor_info.rcWork.top) {
-    y = cursor_position.y + 8;
+  if (y < static_cast<int>(monitor_info.rcWork.top)) {
+    y = cursor_position.y + 16;
   }
 
   SetWindowPos(tray_menu_window_, HWND_TOPMOST, x, y, kTrayMenuWidth,
                menu_height, SWP_SHOWWINDOW);
   SetForegroundWindow(tray_menu_window_);
+  ClearTrayMenuHover();
   InvalidateRect(tray_menu_window_, nullptr, TRUE);
 }
 
@@ -426,6 +431,7 @@ void FlutterWindow::HideTrayMenu() {
     DestroyWindow(tray_menu_window_);
     tray_menu_window_ = nullptr;
   }
+  ClearTrayMenuHover();
 }
 
 void FlutterWindow::PaintTrayMenu(HWND hwnd) {
@@ -435,18 +441,19 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
   RECT client;
   GetClientRect(hwnd, &client);
   FillRectColor(hdc, client, Rgb(249, 250, 252));
-  DrawRoundRect(hdc, client, Rgb(249, 250, 252), Rgb(210, 216, 224), 12);
+  DrawRoundRect(hdc, client, Rgb(249, 250, 252), Rgb(210, 216, 224),
+                kMenuRadius);
 
   SetBkMode(hdc, TRANSPARENT);
 
-  HFONT title_font = CreateMenuFont(15, FW_SEMIBOLD);
-  HFONT subtitle_font = CreateMenuFont(12, FW_NORMAL);
-  HFONT command_font = CreateMenuFont(14, FW_NORMAL);
-  HFONT icon_font = CreateMenuFont(17, FW_SEMIBOLD);
+  HFONT title_font = CreateMenuFont(30, FW_SEMIBOLD);
+  HFONT subtitle_font = CreateMenuFont(24, FW_NORMAL);
+  HFONT command_font = CreateMenuFont(28, FW_NORMAL);
+  HFONT icon_font = CreateMenuFont(34, FW_SEMIBOLD);
 
   int y = kMenuPadding;
   if (tray_tunnels_.empty()) {
-    RECT empty_rect = {16, y + 14, kTrayMenuWidth - 16, y + 36};
+    RECT empty_rect = {32, y + 28, kTrayMenuWidth - 32, y + 72};
     SetTextColor(hdc, Rgb(104, 113, 123));
     auto old_font = SelectObject(hdc, command_font);
     DrawText(hdc, L"Нет сохранённых тоннелей", -1, &empty_rect,
@@ -454,17 +461,23 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
     SelectObject(hdc, old_font);
     y += kTunnelRowHeight;
   } else {
-    for (const auto& tunnel : tray_tunnels_) {
-      RECT row = {8, y, kTrayMenuWidth - 8, y + kTunnelRowHeight};
-      DrawRoundRect(hdc, row, Rgb(249, 250, 252), Rgb(249, 250, 252), 8);
+    for (size_t index = 0; index < tray_tunnels_.size(); ++index) {
+      const auto& tunnel = tray_tunnels_[index];
+      const bool row_hover =
+          tray_hover_tunnel_index_ == static_cast<int>(index);
+      RECT row = {16, y, kTrayMenuWidth - 16, y + kTunnelRowHeight};
+      DrawRoundRect(hdc, row, row_hover ? Rgb(239, 244, 249)
+                                        : Rgb(249, 250, 252),
+                    row_hover ? Rgb(224, 231, 239) : Rgb(249, 250, 252),
+                    kRowRadius);
 
-      RECT title_rect = {18, y + 8, 250, y + 27};
+      RECT title_rect = {36, y + 16, kTrayMenuWidth - 146, y + 54};
       SetTextColor(hdc, Rgb(24, 30, 36));
       auto old_font = SelectObject(hdc, title_font);
       DrawText(hdc, tunnel.name.c_str(), -1, &title_rect,
                DT_SINGLELINE | DT_LEFT | DT_END_ELLIPSIS);
 
-      RECT subtitle_rect = {18, y + 29, 250, y + 47};
+      RECT subtitle_rect = {36, y + 58, kTrayMenuWidth - 146, y + 94};
       SelectObject(hdc, subtitle_font);
       SetTextColor(hdc, tunnel.running ? Rgb(35, 117, 211)
                                        : Rgb(104, 113, 123));
@@ -472,20 +485,25 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
                DT_SINGLELINE | DT_LEFT | DT_END_ELLIPSIS);
       SelectObject(hdc, old_font);
 
-      RECT action_rect = {kTrayMenuWidth - 48, y + 12, kTrayMenuWidth - 18,
-                          y + 42};
+      RECT action_rect = {kTrayMenuWidth - kActionButtonRight -
+                              kActionButtonSize,
+                          y + 24, kTrayMenuWidth - kActionButtonRight, y + 84};
       if (tunnel.starting) {
-        HPEN pen = CreatePen(PS_SOLID, 2, Rgb(65, 135, 225));
+        HPEN pen = CreatePen(PS_SOLID, 4, Rgb(65, 135, 225));
         auto old_pen = SelectObject(hdc, pen);
-        Arc(hdc, action_rect.left + 6, action_rect.top + 6,
-            action_rect.right - 6, action_rect.bottom - 6,
-            action_rect.right - 7, action_rect.top + 9,
-            action_rect.left + 11, action_rect.bottom - 7);
+        Arc(hdc, action_rect.left + 12, action_rect.top + 12,
+            action_rect.right - 12, action_rect.bottom - 12,
+            action_rect.right - 14, action_rect.top + 18,
+            action_rect.left + 22, action_rect.bottom - 14);
         SelectObject(hdc, old_pen);
         DeleteObject(pen);
       } else {
-        DrawRoundRect(hdc, action_rect, Rgb(239, 243, 247),
-                      Rgb(222, 228, 235), 15);
+        const bool action_hover = row_hover && tray_hover_action_;
+        DrawRoundRect(hdc, action_rect, action_hover ? Rgb(226, 234, 242)
+                                                     : Rgb(239, 243, 247),
+                      action_hover ? Rgb(204, 214, 225)
+                                   : Rgb(222, 228, 235),
+                      kActionButtonSize);
         auto old_icon_font = SelectObject(hdc, icon_font);
         SetTextColor(hdc, tunnel.running ? Rgb(200, 58, 70)
                                          : Rgb(40, 149, 92));
@@ -498,7 +516,7 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
     }
   }
 
-  RECT separator = {12, y, kTrayMenuWidth - 12, y + 1};
+  RECT separator = {24, y, kTrayMenuWidth - 24, y + 1};
   FillRectColor(hdc, separator, Rgb(224, 229, 236));
   y += 1;
 
@@ -511,8 +529,15 @@ void FlutterWindow::PaintTrayMenu(HWND hwnd) {
       {L"Закрыть TU client", true},
   };
 
-  for (const auto& command : commands) {
-    RECT text = {18, y, kTrayMenuWidth - 18, y + kCommandRowHeight};
+  for (int index = 0; index < 3; ++index) {
+    const auto& command = commands[index];
+    const bool command_hover = tray_hover_command_index_ == index;
+    RECT row = {16, y + 4, kTrayMenuWidth - 16, y + kCommandRowHeight - 4};
+    if (command.enabled && command_hover) {
+      DrawRoundRect(hdc, row, Rgb(239, 244, 249), Rgb(239, 244, 249),
+                    kRowRadius);
+    }
+    RECT text = {36, y, kTrayMenuWidth - 36, y + kCommandRowHeight};
     SetTextColor(hdc, command.enabled ? Rgb(35, 42, 50) : Rgb(155, 164, 174));
     auto old_font = SelectObject(hdc, command_font);
     DrawText(hdc, command.title, -1, &text,
@@ -540,7 +565,7 @@ void FlutterWindow::HandleTrayMenuClick(int x, int y) {
       return;
     }
 
-    if (x >= kTrayMenuWidth - 56) {
+    if (x >= kTrayMenuWidth - kActionButtonRight - kActionButtonSize - 12) {
       if (!tray_tunnels_[index].starting) {
         InvokeFlutterMethod(
             "statusBarToggleTunnel",
@@ -572,6 +597,55 @@ void FlutterWindow::HandleTrayMenuClick(int x, int y) {
   } else if (command_index == 2) {
     QuitFromTray();
   }
+}
+
+void FlutterWindow::UpdateTrayMenuHover(int x, int y) {
+  if (tray_menu_window_ == nullptr) {
+    return;
+  }
+
+  const int previous_tunnel_index = tray_hover_tunnel_index_;
+  const int previous_command_index = tray_hover_command_index_;
+  const bool previous_action = tray_hover_action_;
+
+  tray_hover_tunnel_index_ = -1;
+  tray_hover_command_index_ = -1;
+  tray_hover_action_ = false;
+
+  const auto tunnel_count = tray_tunnels_.empty() ? 1 : tray_tunnels_.size();
+  const int tunnels_top = kMenuPadding;
+  const int tunnels_bottom =
+      tunnels_top + static_cast<int>(tunnel_count) * kTunnelRowHeight;
+
+  if (!tray_tunnels_.empty() && y >= tunnels_top && y < tunnels_bottom) {
+    const auto index = static_cast<int>((y - tunnels_top) / kTunnelRowHeight);
+    if (index >= 0 && index < static_cast<int>(tray_tunnels_.size())) {
+      tray_hover_tunnel_index_ = index;
+      tray_hover_action_ =
+          x >= kTrayMenuWidth - kActionButtonRight - kActionButtonSize - 12;
+    }
+  } else {
+    const int commands_top = tunnels_bottom + 1;
+    if (y >= commands_top) {
+      const int command_index = (y - commands_top) / kCommandRowHeight;
+      if (command_index >= 0 && command_index < 3) {
+        tray_hover_command_index_ = command_index;
+      }
+    }
+  }
+
+  if (previous_tunnel_index != tray_hover_tunnel_index_ ||
+      previous_command_index != tray_hover_command_index_ ||
+      previous_action != tray_hover_action_) {
+    InvalidateRect(tray_menu_window_, nullptr, TRUE);
+  }
+}
+
+void FlutterWindow::ClearTrayMenuHover() {
+  tray_hover_tunnel_index_ = -1;
+  tray_hover_command_index_ = -1;
+  tray_hover_action_ = false;
+  tray_menu_tracking_mouse_ = false;
 }
 
 void FlutterWindow::UpdateTrayMenu(const flutter::EncodableValue* arguments) {
@@ -664,6 +738,27 @@ LRESULT CALLBACK FlutterWindow::TrayMenuWndProc(HWND hwnd,
     case WM_PAINT:
       if (window != nullptr) {
         window->PaintTrayMenu(hwnd);
+        return 0;
+      }
+      break;
+    case WM_MOUSEMOVE:
+      if (window != nullptr) {
+        if (!window->tray_menu_tracking_mouse_) {
+          TRACKMOUSEEVENT event{};
+          event.cbSize = sizeof(TRACKMOUSEEVENT);
+          event.dwFlags = TME_LEAVE;
+          event.hwndTrack = hwnd;
+          TrackMouseEvent(&event);
+          window->tray_menu_tracking_mouse_ = true;
+        }
+        window->UpdateTrayMenuHover(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+        return 0;
+      }
+      break;
+    case WM_MOUSELEAVE:
+      if (window != nullptr) {
+        window->ClearTrayMenuHover();
+        InvalidateRect(hwnd, nullptr, TRUE);
         return 0;
       }
       break;

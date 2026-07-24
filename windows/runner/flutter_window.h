@@ -46,6 +46,8 @@ class FlutterWindow : public Win32Window {
   void HideTrayMenu();
   void PaintTrayMenu(HWND hwnd);
   void HandleTrayMenuClick(int x, int y);
+  void UpdateTrayMenuHover(int x, int y);
+  void ClearTrayMenuHover();
   void UpdateTrayMenu(const flutter::EncodableValue* arguments);
   void InvokeFlutterMethod(const std::string& method,
                            std::unique_ptr<flutter::EncodableValue> arguments);
@@ -60,6 +62,10 @@ class FlutterWindow : public Win32Window {
   NOTIFYICONDATA tray_icon_data_ = {};
   std::vector<TrayTunnel> tray_tunnels_;
   HWND tray_menu_window_ = nullptr;
+  int tray_hover_tunnel_index_ = -1;
+  int tray_hover_command_index_ = -1;
+  bool tray_hover_action_ = false;
+  bool tray_menu_tracking_mouse_ = false;
   bool tray_initialized_ = false;
   bool has_running_tunnels_ = false;
   bool force_quit_ = false;
