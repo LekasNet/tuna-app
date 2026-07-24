@@ -18,6 +18,8 @@ class FlutterWindow : public Win32Window {
   // Creates a new FlutterWindow hosting a Flutter view running |project|.
   explicit FlutterWindow(const flutter::DartProject& project);
   virtual ~FlutterWindow();
+  static LRESULT CALLBACK TrayMenuWndProc(HWND hwnd, UINT message,
+                                          WPARAM wparam, LPARAM lparam);
 
  protected:
   // Win32Window:
@@ -29,8 +31,9 @@ class FlutterWindow : public Win32Window {
  private:
   struct TrayTunnel {
     std::string id;
-    std::wstring title;
-    std::wstring action_title;
+    std::wstring name;
+    std::wstring subtitle;
+    bool running;
     bool starting;
   };
 
@@ -40,6 +43,9 @@ class FlutterWindow : public Win32Window {
   void HideToTray();
   void QuitFromTray();
   void ShowTrayMenu();
+  void HideTrayMenu();
+  void PaintTrayMenu(HWND hwnd);
+  void HandleTrayMenuClick(int x, int y);
   void UpdateTrayMenu(const flutter::EncodableValue* arguments);
   void InvokeFlutterMethod(const std::string& method,
                            std::unique_ptr<flutter::EncodableValue> arguments);
@@ -53,6 +59,7 @@ class FlutterWindow : public Win32Window {
       tray_channel_;
   NOTIFYICONDATA tray_icon_data_ = {};
   std::vector<TrayTunnel> tray_tunnels_;
+  HWND tray_menu_window_ = nullptr;
   bool tray_initialized_ = false;
   bool has_running_tunnels_ = false;
   bool force_quit_ = false;

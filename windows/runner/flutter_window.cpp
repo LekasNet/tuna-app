@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <windowsx.h>
 
+#include <algorithm>
 #include <optional>
 #include <sstream>
 
@@ -19,6 +20,11 @@ constexpr UINT kFirstTunnelActionMenuId = 40051;
 constexpr UINT kOpenProgramMenuId = 40101;
 constexpr UINT kStopAllTunnelsMenuId = 40201;
 constexpr UINT kQuitMenuId = 40202;
+constexpr wchar_t kTrayMenuWindowClassName[] = L"TU_CLIENT_TRAY_MENU_WINDOW";
+constexpr int kTrayMenuWidth = 320;
+constexpr int kTunnelRowHeight = 54;
+constexpr int kCommandRowHeight = 34;
+constexpr int kMenuPadding = 8;
 
 UINT ShowExistingWindowMessage() {
   static const UINT message =
@@ -85,6 +91,73 @@ bool BoolFromMap(const flutter::EncodableMap& map, const char* key) {
   return false;
 }
 
+COLORREF Rgb(int red, int green, int blue) {
+  return RGB(red, green, blue);
+}
+
+std::wstring StripProtocol(const std::wstring& url) {
+  constexpr wchar_t https[] = L"https://";
+  constexpr wchar_t http[] = L"http://";
+  if (url.rfind(https, 0) == 0) {
+    return url.substr(wcslen(https));
+  }
+  if (url.rfind(http, 0) == 0) {
+    return url.substr(wcslen(http));
+  }
+  return url;
+}
+
+void FillRectColor(HDC hdc, const RECT& rect, COLORREF color) {
+  HBRUSH brush = CreateSolidBrush(color);
+  FillRect(hdc, &rect, brush);
+  DeleteObject(brush);
+}
+
+void DrawRoundRect(HDC hdc,
+                   const RECT& rect,
+                   COLORREF fill,
+                   COLORREF stroke,
+                   int radius) {
+  HBRUSH brush = CreateSolidBrush(fill);
+  HPEN pen = CreatePen(PS_SOLID, 1, stroke);
+  auto old_brush = SelectObject(hdc, brush);
+  auto old_pen = SelectObject(hdc, pen);
+  RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, radius, radius);
+  SelectObject(hdc, old_pen);
+  SelectObject(hdc, old_brush);
+  DeleteObject(pen);
+  DeleteObject(brush);
+}
+
+HFONT CreateMenuFont(int size, int weight) {
+  return CreateFontW(-size, 0, 0, 0, weight, FALSE, FALSE, FALSE,
+                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                     L"Segoe UI");
+}
+
+int TrayMenuHeight(size_t tunnel_count) {
+  const auto rows = tunnel_count == 0 ? 1 : tunnel_count;
+  return kMenuPadding * 2 + static_cast<int>(rows) * kTunnelRowHeight + 1 +
+         kCommandRowHeight * 3;
+}
+
+ATOM RegisterTrayMenuWindowClass() {
+  static ATOM atom = 0;
+  if (atom != 0) {
+    return atom;
+  }
+
+  WNDCLASS window_class{};
+  window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
+  window_class.lpszClassName = kTrayMenuWindowClassName;
+  window_class.hInstance = GetModuleHandle(nullptr);
+  window_class.hbrBackground = nullptr;
+  window_class.lpfnWndProc = FlutterWindow::TrayMenuWndProc;
+  atom = RegisterClass(&window_class);
+  return atom;
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -143,6 +216,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  HideTrayMenu();
   RemoveTray();
   tray_channel_.reset();
 
@@ -272,6 +346,7 @@ void FlutterWindow::RemoveTray() {
 }
 
 void FlutterWindow::RestoreFromTray() {
+  HideTrayMenu();
   HWND hwnd = GetHandle();
   if (hwnd == nullptr) {
     return;
@@ -294,6 +369,7 @@ void FlutterWindow::HideToTray() {
 }
 
 void FlutterWindow::QuitFromTray() {
+  HideTrayMenu();
   force_quit_ = true;
   HWND hwnd = GetHandle();
   if (hwnd != nullptr) {
@@ -307,39 +383,193 @@ void FlutterWindow::ShowTrayMenu() {
     return;
   }
 
-  HMENU menu = CreatePopupMenu();
-  if (menu == nullptr) {
+  if (RegisterTrayMenuWindowClass() == 0) {
     return;
   }
 
-  if (tray_tunnels_.empty()) {
-    AppendMenu(menu, MF_STRING | MF_DISABLED, 0, L"Нет сохранённых тоннелей");
-  } else {
-    for (size_t i = 0; i < tray_tunnels_.size(); ++i) {
-      AppendMenu(menu, MF_STRING, kFirstTunnelOpenMenuId + i,
-                 tray_tunnels_[i].title.c_str());
-      AppendMenu(menu,
-                 MF_STRING | (tray_tunnels_[i].starting ? MF_DISABLED : MF_ENABLED),
-                 kFirstTunnelActionMenuId + i,
-                 tray_tunnels_[i].action_title.c_str());
+  const int menu_height = TrayMenuHeight(tray_tunnels_.size());
+  if (tray_menu_window_ == nullptr) {
+    tray_menu_window_ = CreateWindowEx(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW, kTrayMenuWindowClassName, L"",
+        WS_POPUP | WS_CLIPCHILDREN, 0, 0, kTrayMenuWidth, menu_height, hwnd,
+        nullptr, GetModuleHandle(nullptr), this);
+    if (tray_menu_window_ == nullptr) {
+      return;
     }
   }
 
-  AppendMenu(menu, MF_SEPARATOR, 0, nullptr);
-  AppendMenu(menu, MF_STRING, kOpenProgramMenuId, L"Открыть программу");
-  AppendMenu(menu,
-             MF_STRING | (has_running_tunnels_ ? MF_ENABLED : MF_DISABLED),
-             kStopAllTunnelsMenuId, L"Остановить все тоннели");
-  AppendMenu(menu, MF_SEPARATOR, 0, nullptr);
-  AppendMenu(menu, MF_STRING, kQuitMenuId, L"Закрыть TU client");
-
   POINT cursor_position;
   GetCursorPos(&cursor_position);
-  SetForegroundWindow(hwnd);
-  TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_BOTTOMALIGN | TPM_LEFTALIGN,
-                 cursor_position.x, cursor_position.y, 0, hwnd, nullptr);
-  PostMessage(hwnd, WM_NULL, 0, 0);
-  DestroyMenu(menu);
+  HMONITOR monitor = MonitorFromPoint(cursor_position, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO monitor_info{};
+  monitor_info.cbSize = sizeof(MONITORINFO);
+  GetMonitorInfo(monitor, &monitor_info);
+
+  int x = cursor_position.x - kTrayMenuWidth + 18;
+  int y = cursor_position.y - menu_height - 8;
+  x = std::max(monitor_info.rcWork.left + 4,
+               std::min(x, monitor_info.rcWork.right - kTrayMenuWidth - 4));
+  if (y < monitor_info.rcWork.top) {
+    y = cursor_position.y + 8;
+  }
+
+  SetWindowPos(tray_menu_window_, HWND_TOPMOST, x, y, kTrayMenuWidth,
+               menu_height, SWP_SHOWWINDOW);
+  SetForegroundWindow(tray_menu_window_);
+  InvalidateRect(tray_menu_window_, nullptr, TRUE);
+}
+
+void FlutterWindow::HideTrayMenu() {
+  if (tray_menu_window_ != nullptr) {
+    DestroyWindow(tray_menu_window_);
+    tray_menu_window_ = nullptr;
+  }
+}
+
+void FlutterWindow::PaintTrayMenu(HWND hwnd) {
+  PAINTSTRUCT paint;
+  HDC hdc = BeginPaint(hwnd, &paint);
+
+  RECT client;
+  GetClientRect(hwnd, &client);
+  FillRectColor(hdc, client, Rgb(249, 250, 252));
+  DrawRoundRect(hdc, client, Rgb(249, 250, 252), Rgb(210, 216, 224), 12);
+
+  SetBkMode(hdc, TRANSPARENT);
+
+  HFONT title_font = CreateMenuFont(15, FW_SEMIBOLD);
+  HFONT subtitle_font = CreateMenuFont(12, FW_NORMAL);
+  HFONT command_font = CreateMenuFont(14, FW_NORMAL);
+  HFONT icon_font = CreateMenuFont(17, FW_SEMIBOLD);
+
+  int y = kMenuPadding;
+  if (tray_tunnels_.empty()) {
+    RECT empty_rect = {16, y + 14, kTrayMenuWidth - 16, y + 36};
+    SetTextColor(hdc, Rgb(104, 113, 123));
+    auto old_font = SelectObject(hdc, command_font);
+    DrawText(hdc, L"Нет сохранённых тоннелей", -1, &empty_rect,
+             DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS);
+    SelectObject(hdc, old_font);
+    y += kTunnelRowHeight;
+  } else {
+    for (const auto& tunnel : tray_tunnels_) {
+      RECT row = {8, y, kTrayMenuWidth - 8, y + kTunnelRowHeight};
+      DrawRoundRect(hdc, row, Rgb(249, 250, 252), Rgb(249, 250, 252), 8);
+
+      RECT title_rect = {18, y + 8, 250, y + 27};
+      SetTextColor(hdc, Rgb(24, 30, 36));
+      auto old_font = SelectObject(hdc, title_font);
+      DrawText(hdc, tunnel.name.c_str(), -1, &title_rect,
+               DT_SINGLELINE | DT_LEFT | DT_END_ELLIPSIS);
+
+      RECT subtitle_rect = {18, y + 29, 250, y + 47};
+      SelectObject(hdc, subtitle_font);
+      SetTextColor(hdc, tunnel.running ? Rgb(35, 117, 211)
+                                       : Rgb(104, 113, 123));
+      DrawText(hdc, tunnel.subtitle.c_str(), -1, &subtitle_rect,
+               DT_SINGLELINE | DT_LEFT | DT_END_ELLIPSIS);
+      SelectObject(hdc, old_font);
+
+      RECT action_rect = {kTrayMenuWidth - 48, y + 12, kTrayMenuWidth - 18,
+                          y + 42};
+      if (tunnel.starting) {
+        HPEN pen = CreatePen(PS_SOLID, 2, Rgb(65, 135, 225));
+        auto old_pen = SelectObject(hdc, pen);
+        Arc(hdc, action_rect.left + 6, action_rect.top + 6,
+            action_rect.right - 6, action_rect.bottom - 6,
+            action_rect.right - 7, action_rect.top + 9,
+            action_rect.left + 11, action_rect.bottom - 7);
+        SelectObject(hdc, old_pen);
+        DeleteObject(pen);
+      } else {
+        DrawRoundRect(hdc, action_rect, Rgb(239, 243, 247),
+                      Rgb(222, 228, 235), 15);
+        auto old_font = SelectObject(hdc, icon_font);
+        SetTextColor(hdc, tunnel.running ? Rgb(200, 58, 70)
+                                         : Rgb(40, 149, 92));
+        DrawText(hdc, tunnel.running ? L"■" : L"▶", -1, &action_rect,
+                 DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+        SelectObject(hdc, old_font);
+      }
+
+      y += kTunnelRowHeight;
+    }
+  }
+
+  RECT separator = {12, y, kTrayMenuWidth - 12, y + 1};
+  FillRectColor(hdc, separator, Rgb(224, 229, 236));
+  y += 1;
+
+  const struct CommandRow {
+    const wchar_t* title;
+    bool enabled;
+  } commands[] = {
+      {L"Открыть программу", true},
+      {L"Остановить все тоннели", has_running_tunnels_},
+      {L"Закрыть TU client", true},
+  };
+
+  for (const auto& command : commands) {
+    RECT text = {18, y, kTrayMenuWidth - 18, y + kCommandRowHeight};
+    SetTextColor(hdc, command.enabled ? Rgb(35, 42, 50) : Rgb(155, 164, 174));
+    auto old_font = SelectObject(hdc, command_font);
+    DrawText(hdc, command.title, -1, &text,
+             DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_END_ELLIPSIS);
+    SelectObject(hdc, old_font);
+    y += kCommandRowHeight;
+  }
+
+  DeleteObject(title_font);
+  DeleteObject(subtitle_font);
+  DeleteObject(command_font);
+  DeleteObject(icon_font);
+  EndPaint(hwnd, &paint);
+}
+
+void FlutterWindow::HandleTrayMenuClick(int x, int y) {
+  const auto tunnel_count = tray_tunnels_.empty() ? 1 : tray_tunnels_.size();
+  const int tunnels_top = kMenuPadding;
+  const int tunnels_bottom =
+      tunnels_top + static_cast<int>(tunnel_count) * kTunnelRowHeight;
+
+  if (!tray_tunnels_.empty() && y >= tunnels_top && y < tunnels_bottom) {
+    const auto index = static_cast<size_t>((y - tunnels_top) / kTunnelRowHeight);
+    if (index >= tray_tunnels_.size()) {
+      return;
+    }
+
+    if (x >= kTrayMenuWidth - 56) {
+      if (!tray_tunnels_[index].starting) {
+        InvokeFlutterMethod(
+            "statusBarToggleTunnel",
+            std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
+      }
+    } else {
+      RestoreFromTray();
+      InvokeFlutterMethod(
+          "statusBarOpenTunnel",
+          std::make_unique<flutter::EncodableValue>(tray_tunnels_[index].id));
+      HideTrayMenu();
+    }
+    return;
+  }
+
+  const int commands_top = tunnels_bottom + 1;
+  if (y < commands_top) {
+    return;
+  }
+
+  const int command_index = (y - commands_top) / kCommandRowHeight;
+  if (command_index == 0) {
+    RestoreFromTray();
+    HideTrayMenu();
+  } else if (command_index == 1) {
+    if (has_running_tunnels_) {
+      InvokeFlutterMethod("statusBarStopAll", nullptr);
+    }
+  } else if (command_index == 2) {
+    QuitFromTray();
+  }
 }
 
 void FlutterWindow::UpdateTrayMenu(const flutter::EncodableValue* arguments) {
@@ -383,14 +613,24 @@ void FlutterWindow::UpdateTrayMenu(const flutter::EncodableValue* arguments) {
     const auto running = BoolFromMap(*tunnel, "running");
     const auto status = StringFromMap(*tunnel, "status");
     const auto starting = status == "starting";
-    const auto status_icon = starting ? L"◌" : (running ? L"■" : L"▶");
-    const auto action = starting
-        ? L"  ◌ Запускается..."
-        : (running ? L"  ■ Остановить" : L"  ▶ Запустить");
+    const auto local_address = WStringFromMap(*tunnel, "localAddress");
+    const auto public_url = WStringFromMap(*tunnel, "publicUrl");
 
-    std::wstringstream title;
-    title << status_icon << L" " << name << L" (" << type << L" " << port << L")";
-    tray_tunnels_.push_back({id, title.str(), action, starting});
+    std::wstringstream fallback_address;
+    fallback_address << type << L" " << port;
+    const auto subtitle = running && !public_url.empty()
+                              ? StripProtocol(public_url)
+                              : (local_address.empty() ? fallback_address.str()
+                                                       : local_address);
+
+    tray_tunnels_.push_back({id, name, subtitle, running, starting});
+  }
+
+  if (tray_menu_window_ != nullptr) {
+    SetWindowPos(tray_menu_window_, HWND_TOPMOST, 0, 0, kTrayMenuWidth,
+                 TrayMenuHeight(tray_tunnels_.size()),
+                 SWP_NOMOVE | SWP_NOACTIVATE);
+    InvalidateRect(tray_menu_window_, nullptr, TRUE);
   }
 }
 
@@ -402,4 +642,59 @@ void FlutterWindow::InvokeFlutterMethod(
   }
 
   tray_channel_->InvokeMethod(method, std::move(arguments));
+}
+
+LRESULT CALLBACK FlutterWindow::TrayMenuWndProc(HWND hwnd,
+                                                UINT message,
+                                                WPARAM wparam,
+                                                LPARAM lparam) {
+  auto* window =
+      reinterpret_cast<FlutterWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+  if (message == WM_NCCREATE) {
+    const auto* create_struct = reinterpret_cast<CREATESTRUCT*>(lparam);
+    SetWindowLongPtr(hwnd, GWLP_USERDATA,
+                     reinterpret_cast<LONG_PTR>(create_struct->lpCreateParams));
+    return TRUE;
+  }
+
+  switch (message) {
+    case WM_PAINT:
+      if (window != nullptr) {
+        window->PaintTrayMenu(hwnd);
+        return 0;
+      }
+      break;
+    case WM_LBUTTONUP:
+      if (window != nullptr) {
+        window->HandleTrayMenuClick(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+        return 0;
+      }
+      break;
+    case WM_ACTIVATE:
+      if (LOWORD(wparam) == WA_INACTIVE && window != nullptr) {
+        window->HideTrayMenu();
+        return 0;
+      }
+      break;
+    case WM_KILLFOCUS:
+      if (window != nullptr) {
+        window->HideTrayMenu();
+        return 0;
+      }
+      break;
+    case WM_KEYDOWN:
+      if (wparam == VK_ESCAPE && window != nullptr) {
+        window->HideTrayMenu();
+        return 0;
+      }
+      break;
+    case WM_DESTROY:
+      if (window != nullptr && window->tray_menu_window_ == hwnd) {
+        window->tray_menu_window_ = nullptr;
+      }
+      break;
+  }
+
+  return DefWindowProc(hwnd, message, wparam, lparam);
 }
