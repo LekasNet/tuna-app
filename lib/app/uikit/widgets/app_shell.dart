@@ -3,9 +3,11 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:tuna/app/l10n/app_localizations.dart';
+import 'package:tuna/core/macos/macos_status_bar_service.dart';
 import 'package:tuna/di/settings/settings_controller.dart';
 import 'package:tuna/di/tabs/tabs_controller.dart';
 import 'package:tuna/di/docker/docker_controller.dart';
@@ -24,6 +26,10 @@ import '../../../di/notifications/notification_models.dart';
 import '../../../di/notifications/notifications_controller.dart';
 import '../../../di/tunnels/tunnels_controller.dart';
 import '../app_colors.dart';
+
+const bool _showMacosCustomWindowButtons = bool.fromEnvironment(
+  'TUNA_MACOS_CUSTOM_WINDOW_BUTTONS',
+);
 
 class AppShell extends StatelessWidget {
   final SettingsController settingsController;
@@ -73,7 +79,8 @@ class AppShell extends StatelessWidget {
                   color: theme.colorScheme.surface,
                   child: Column(
                     children: [
-                      if (!Platform.isMacOS) const _CustomTitleBar(),
+                      if (!Platform.isMacOS || _showMacosCustomWindowButtons)
+                        const _CustomTitleBar(),
                       Expanded(
                         child: _RightContent(
                           tabsController: tabsController,
@@ -101,7 +108,7 @@ class _CustomTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (Platform.isMacOS) {
+    if (Platform.isMacOS && !_showMacosCustomWindowButtons) {
       return const SizedBox.shrink();
     }
 
@@ -109,13 +116,15 @@ class _CustomTitleBar extends StatelessWidget {
     final barColor = theme.colorScheme.surface;
 
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 32,
       color: barColor,
       child: Row(
         children: [
           Expanded(child: DragToMoveArea(child: const SizedBox.expand())),
-          const _WindowButtons(),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: _WindowButtons(),
+          ),
         ],
       ),
     );
@@ -155,17 +164,26 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
     if (mounted) setState(() => _isMaximized = false);
   }
 
+  @override
+  void onWindowRestore() {
+    if (mounted) setState(() => _isMaximized = false);
+  }
+
   Future<void> _syncMaximizedState() async {
     final maximized = await windowManager.isMaximized();
     if (mounted) setState(() => _isMaximized = maximized);
   }
 
   Future<void> _maximizeOrRestore() async {
-    if (_isMaximized) {
+    final maximized = await windowManager.isMaximized();
+    if (maximized) {
+      if (mounted) setState(() => _isMaximized = false);
       await windowManager.unmaximize();
     } else {
+      if (mounted) setState(() => _isMaximized = true);
       await windowManager.maximize();
     }
+    await Future<void>.delayed(const Duration(milliseconds: 80));
     await _syncMaximizedState();
   }
 
@@ -175,10 +193,11 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
     final cs = theme.colorScheme;
 
     final iconColor = cs.onSurface;
-    final hoverBg = cs.surfaceContainerHighest.withValues(alpha: 0.8);
-    final pressedBg = cs.surfaceContainerHighest;
+    final hoverBg = cs.onSurface.withValues(alpha: 0.08);
+    final pressedBg = cs.onSurface.withValues(alpha: 0.14);
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _WindowIconButton(
           icon: Icons.remove_rounded,
@@ -187,6 +206,7 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
           pressedBg: pressedBg,
           onPressed: () => unawaited(windowManager.minimize()),
         ),
+        const SizedBox(width: 4),
         _WindowIconButton(
           icon: _isMaximized
               ? Icons.filter_none_rounded
@@ -196,6 +216,7 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
           pressedBg: pressedBg,
           onPressed: () => unawaited(_maximizeOrRestore()),
         ),
+        const SizedBox(width: 4),
         _WindowIconButton(
           icon: Icons.close_rounded,
           iconColor: iconColor,
@@ -204,7 +225,9 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
           hoverIconColor: cs.onError,
           onPressed: () {
             if (Platform.isMacOS) {
-              unawaited(windowManager.hide());
+              unawaited(MacosStatusBarService.hideWindow());
+            } else if (Platform.isWindows && _isShiftPressed()) {
+              unawaited(windowManager.destroy());
             } else {
               unawaited(windowManager.close());
             }
@@ -213,6 +236,12 @@ class _WindowButtonsState extends State<_WindowButtons> with WindowListener {
       ],
     );
   }
+}
+
+bool _isShiftPressed() {
+  final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+  return pressed.contains(LogicalKeyboardKey.shiftLeft) ||
+      pressed.contains(LogicalKeyboardKey.shiftRight);
 }
 
 class _WindowIconButton extends StatefulWidget {
@@ -242,31 +271,39 @@ class _WindowIconButtonState extends State<_WindowIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = _pressed
-        ? widget.pressedBg
-        : (_hovered ? widget.hoverBg : Colors.transparent);
     final iconColor = _hovered
         ? widget.hoverIconColor ?? widget.iconColor
         : widget.iconColor;
+    final bg = _pressed
+        ? widget.pressedBg
+        : (_hovered ? widget.hoverBg : Colors.transparent);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: 46,
-          height: 40,
-          color: bg,
-          child: Icon(widget.icon, size: 18, color: iconColor),
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: MouseRegion(
+        opaque: true,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTap: widget.onPressed,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOutCubic,
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              child: Icon(widget.icon, size: 15, color: iconColor),
+            ),
+          ),
         ),
       ),
     );

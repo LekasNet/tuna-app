@@ -74,6 +74,7 @@ void main() async {
   final remoteTunnelsController = RemoteTunnelsController();
   final macosStatusBarService = MacosStatusBarService(
     tunnelsController: tunnelsController,
+    tabsController: tabsController,
   );
   await macosStatusBarService.initialize();
 

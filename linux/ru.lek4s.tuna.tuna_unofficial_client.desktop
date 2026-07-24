@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TU Client
+Comment=Unofficial desktop client for tuna
+Exec=tuna_unofficial_client
+Icon=tuna_unofficial_client
+Terminal=false
+Categories=Network;Utility;

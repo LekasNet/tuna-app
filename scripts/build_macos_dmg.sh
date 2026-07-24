@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-APP_NAME="${APP_NAME:-tuna_unofficial_client}"
+APP_NAME="${APP_NAME:-TU Client}"
 VOLUME_NAME="${VOLUME_NAME:-Tuna}"
 VERSION="$(awk '/^version:/ {print $2; exit}' pubspec.yaml | cut -d+ -f1)"
 OUTPUT_DIR="$ROOT_DIR/build/macos/dmg"
