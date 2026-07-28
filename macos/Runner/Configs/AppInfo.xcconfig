@@ -5,7 +5,7 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = tuna_unofficial_client
+PRODUCT_NAME = TU Client
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = ru.lek4s.tuna.tuna-unofficial-client

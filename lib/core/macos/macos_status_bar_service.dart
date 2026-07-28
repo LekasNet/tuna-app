@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../cli/cli_commands.dart';
 import '../tunnels/tunnel_models.dart';
+import '../../di/tabs/tabs_controller.dart';
 import '../../di/tunnels/tunnels_controller.dart';
 
 class MacosStatusBarService {
@@ -14,12 +16,18 @@ class MacosStatusBarService {
   );
 
   final TunnelsController _tunnelsController;
+  final TabsController _tabsController;
 
-  MacosStatusBarService({required TunnelsController tunnelsController})
-    : _tunnelsController = tunnelsController;
+  MacosStatusBarService({
+    required TunnelsController tunnelsController,
+    required TabsController tabsController,
+  }) : _tunnelsController = tunnelsController,
+       _tabsController = tabsController;
+
+  static bool get _isSupportedPlatform => Platform.isMacOS || Platform.isWindows;
 
   Future<void> initialize() async {
-    if (!Platform.isMacOS) return;
+    if (!_isSupportedPlatform) return;
 
     _channel.setMethodCallHandler(_handleNativeCall);
     _tunnelsController.addListener(_syncMenu);
@@ -28,23 +36,23 @@ class MacosStatusBarService {
       await _syncMenu();
     } on MissingPluginException catch (error, stackTrace) {
       _tunnelsController.removeListener(_syncMenu);
-      debugPrint('macOS status bar channel is not available: $error');
+      debugPrint('desktop status bar channel is not available: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
   }
 
   void dispose() {
-    if (!Platform.isMacOS) return;
+    if (!_isSupportedPlatform) return;
     _tunnelsController.removeListener(_syncMenu);
     _channel.setMethodCallHandler(null);
   }
 
   static Future<void> hideWindow() async {
-    if (!Platform.isMacOS) return;
+    if (!_isSupportedPlatform) return;
     try {
       await _channel.invokeMethod<void>('hideWindow');
     } on MissingPluginException catch (error) {
-      debugPrint('macOS status bar hideWindow is not available: $error');
+      debugPrint('desktop status bar hideWindow is not available: $error');
       await windowManager.hide();
     }
   }
@@ -56,12 +64,27 @@ class MacosStatusBarService {
         if (id == null) return;
         await _toggleTunnel(id);
         break;
+      case 'statusBarOpenTunnel':
+        final id = call.arguments as String?;
+        if (id == null) return;
+        await _openTunnel(id);
+        break;
       case 'statusBarStopAll':
         await _tunnelsController.stopAllTunnels();
         break;
     }
 
     await _syncMenu();
+  }
+
+  Future<void> _openTunnel(String id) async {
+    _tunnelsController.selectTunnel(id);
+    _tabsController.selectTab(AppTab.tunnels);
+
+    if (Platform.isMacOS || Platform.isWindows) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
   }
 
   Future<void> _toggleTunnel(String id) async {
@@ -82,7 +105,7 @@ class MacosStatusBarService {
   }
 
   Future<void> _syncMenu() async {
-    if (!Platform.isMacOS) return;
+    if (!_isSupportedPlatform) return;
 
     final items = _recentTunnels()
         .map(_serializeTunnel)
@@ -111,12 +134,27 @@ class MacosStatusBarService {
 
   Map<String, Object?> _serializeTunnel(SavedTunnel tunnel) {
     final running = _tunnelsController.isRunning(tunnel.id);
+    final forwarding = _tunnelsController.forwardingFor(tunnel.id);
     return <String, Object?>{
       'id': tunnel.id,
       'name': tunnel.name,
       'type': tunnel.type.name,
       'localPort': tunnel.localPort,
+      'status': tunnel.status.name,
       'running': running,
+      'localAddress': _localAddressFor(tunnel),
+      'publicUrl': forwarding?.publicUrl,
     };
+  }
+
+  String _localAddressFor(SavedTunnel tunnel) {
+    if (tunnel.type == TunnelType.ssh) {
+      return 'SSH';
+    }
+
+    final host = tunnel.ip == null || tunnel.ip!.trim().isEmpty
+        ? '127.0.0.1'
+        : tunnel.ip!.trim();
+    return '$host:${tunnel.localPort}';
   }
 }
