@@ -54,6 +54,7 @@ END
 // remains consistent on all systems.
 IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
 IDI_TRAY_ICON           ICON                    "resources\\status.ico"
+IDI_TRAY_ICON_LIGHT     ICON                    "resources\\status_light.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////

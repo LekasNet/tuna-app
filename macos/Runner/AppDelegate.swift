@@ -80,6 +80,7 @@ class AppDelegate: FlutterAppDelegate {
 
     button.title = ""
     button.image = NSImage(named: "StatusIcon")
+    button.image?.isTemplate = true
     button.image?.size = NSSize(width: 18, height: 18)
     button.imagePosition = .imageOnly
   }

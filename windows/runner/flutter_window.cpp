@@ -95,6 +95,16 @@ bool BoolFromMap(const flutter::EncodableMap& map, const char* key) {
   return false;
 }
 
+bool IsWindowsLightTheme() {
+  DWORD value = 1;
+  DWORD value_size = sizeof(value);
+  const auto status = RegGetValue(
+      HKEY_CURRENT_USER,
+      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+      L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &value_size);
+  return status != ERROR_SUCCESS || value != 0;
+}
+
 COLORREF Rgb(int red, int green, int blue) {
   return RGB(red, green, blue);
 }
@@ -285,6 +295,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     }
   }
 
+  if (message == WM_SETTINGCHANGE) {
+    UpdateTrayIcon();
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -329,8 +343,10 @@ void FlutterWindow::InitializeTray() {
   tray_icon_data_.uID = 1;
   tray_icon_data_.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
   tray_icon_data_.uCallbackMessage = kTrayCallbackMessage;
-  tray_icon_data_.hIcon =
-      LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_TRAY_ICON));
+  tray_icon_data_.hIcon = LoadIcon(
+      GetModuleHandle(nullptr),
+      MAKEINTRESOURCE(IsWindowsLightTheme() ? IDI_TRAY_ICON
+                                            : IDI_TRAY_ICON_LIGHT));
   wcscpy_s(tray_icon_data_.szTip, L"TU Client");
 
   tray_initialized_ = Shell_NotifyIcon(NIM_ADD, &tray_icon_data_) == TRUE;
@@ -338,6 +354,20 @@ void FlutterWindow::InitializeTray() {
     tray_icon_data_.uVersion = NOTIFYICON_VERSION_4;
     Shell_NotifyIcon(NIM_SETVERSION, &tray_icon_data_);
   }
+}
+
+void FlutterWindow::UpdateTrayIcon() {
+  if (!tray_initialized_) {
+    return;
+  }
+
+  tray_icon_data_.uFlags = NIF_ICON | NIF_TIP;
+  tray_icon_data_.hIcon = LoadIcon(
+      GetModuleHandle(nullptr),
+      MAKEINTRESOURCE(IsWindowsLightTheme() ? IDI_TRAY_ICON
+                                            : IDI_TRAY_ICON_LIGHT));
+  wcscpy_s(tray_icon_data_.szTip, L"TU Client");
+  Shell_NotifyIcon(NIM_MODIFY, &tray_icon_data_);
 }
 
 void FlutterWindow::RemoveTray() {

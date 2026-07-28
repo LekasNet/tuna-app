@@ -1,14 +1,9 @@
 {
   "images" : [
     {
-      "filename" : "status_16.png",
+      "filename" : "status.pdf",
       "idiom" : "mac",
-      "scale" : "1x"
-    },
-    {
-      "filename" : "status_32.png",
-      "idiom" : "mac",
-      "scale" : "2x"
+      "preserves-vector-representation" : true
     }
   ],
   "info" : {

@@ -44,6 +44,7 @@ class FlutterWindow : public Win32Window {
   void QuitFromTray();
   void ShowTrayMenu();
   void HideTrayMenu();
+  void UpdateTrayIcon();
   void PaintTrayMenu(HWND hwnd);
   void HandleTrayMenuClick(int x, int y);
   void UpdateTrayMenuHover(int x, int y);
